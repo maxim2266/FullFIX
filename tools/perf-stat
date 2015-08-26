@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+
+'''
+Copyright (c) 2015, Maxim Konakov
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+'''
+
+from sys import exit, argv
+import subprocess
+
+# error exit
+def die(msg):
+	exit('ERROR: ' + msg)
+
+# command line parameters
+usage = 'Usage: {} <num-runs>'.format(argv[0])
+
+if len(argv) > 2:
+	die('Invalid parameters\n' + usage)
+
+try:
+	num_runs = 10 if len(argv) == 1 else int(argv[1])
+except ValueError:
+	die('Invalid parameter "{}"'.format(argv[1]))
+
+if num_runs <= 0 or num_runs > 1000:
+	die('Invalid parameter value "{}"'.format(argv[1]))
+
+# test invocation
+def test_results():
+	try:
+		output = subprocess.check_output('./uf-test', universal_newlines = True)
+	except OSError as e:
+		die(str(e))
+	prefix = '-- '
+	for s in output.split('\n'):
+		if s.startswith(prefix):
+			try:
+				name, s = s[len(prefix):].split(':')
+				yield name, float(s.split()[-2])
+			except ValueError as e:
+				die(str(e))
+		elif s.startswith('FAILED'):
+			die('Test failed')
+
+# test result collector
+times = dict(r for r in test_results())
+
+for i in range(num_runs - 1):
+	for name, val in test_results():
+		times[name] += val
+
+# output
+for key in times.keys():
+	name = ' '.join(s for s in key.split('_') if s != 'timed')
+	print('{}: {:.3f} µs/msg'.format(name, times[key] / num_runs))

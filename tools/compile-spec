@@ -1,0 +1,555 @@
+#!/usr/bin/env python3
+
+'''
+Copyright (c) 2015, Maxim Konakov
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+'''
+
+from sys import exit, argv
+import xml.etree.ElementTree as ET
+from os.path import basename, splitext, exists, isdir, join as path_join
+from collections import namedtuple, OrderedDict, deque
+from functools import singledispatch
+from itertools import chain
+from argparse import ArgumentParser
+
+# helpers ---------------------------------------------------------------------------------------------
+# error exit
+def die(msg):
+	exit('ERROR: ' + msg)
+
+# input file parser
+def parse_file(name):
+	# read file
+	try:
+		spec = ET.parse(name).getroot()
+	except Exception as e:
+		die('Cannot read input file: ' + str(e))
+	# validate
+	if spec.tag != 'fix': die('Unexpected root tag "{}" in the file "{}"'.format(spec.tag, name))
+	# done
+	try:
+		return (spec, '{type}.{major}.{minor}'.format(**spec.attrib))
+	except KeyError as e:
+		die('Missing root node attribute: "{}"'.format(e.args[0]))
+
+# file writer
+def write_file(file_name, fmt, data):
+	try:
+		with open(file_name, 'w') as f:
+			print(fmt.format(**data), file = f)
+	except IOError as e:
+		die('Cannot write "{}": {}'.format(file_name, e))
+
+# data extractors -------------------------------------------------------------------------------------
+# tag types
+RegularTag = namedtuple('RegularTag', ('value', 'data_type'))
+DataTag = namedtuple('DataTag', ('value', 'length_tag_value'))
+DataLengthTag = namedtuple('DataLengthTag', ('value', 'data_tag_name'))
+GroupTag = namedtuple('GroupTag', ('size_tag_name', 'block'))
+Component = namedtuple('Component', ())
+
+# tags reader
+def get_tags(spec):
+	def get_number(node):
+		try:
+			return int(node.attrib['number'])
+		except ValueError as e:
+			die('Invalid attribute "number" in the field "{}": {}'.format(node.attrib['name'], e.args[0]))
+
+	# { name -> RegularTag }
+	tags = { node.attrib['name'] : RegularTag(get_number(node), node.attrib['type']) \
+				for node in spec.iterfind('./fields/field[@name][@number][@type]') }
+	#validate
+	if not tags: die('No "field" nodes found')
+	# update tags with DataTag and DataLengthTag
+	new_tags = {}
+	for name, t in tags.items():
+		if t.data_type == 'DATA':
+			# try 'Len' or 'Length' suffix (is there a better method?)
+			for lname in (name + 'Len', name + 'Length'):
+				try:
+					len_tag = tags[lname]
+				except KeyError:
+					continue
+				if len_tag.data_type == 'LENGTH':
+					break	# found
+			else:
+				die('Cannot find corresponding length tag for the data tag "{}"'.format(name))
+			# store the find
+			new_tags[name] = DataTag(t.value, len_tag.value)
+			new_tags[lname] = DataLengthTag(len_tag.value, name)
+	# update with the new tags
+	tags.update(new_tags)
+	# done
+	return tags
+
+# path to string converters
+def path_to_string(path):
+	return '/'.join(path)
+
+def group_name(path, len_tag_name):
+	return '_'.join(path + [len_tag_name,])
+
+# helper to read a block
+def get_block(block, tags, path):
+	def error_exit(name):
+		die('Unknown node "{}" in {}'.format(name, path_to_string(path)))
+
+	# getters
+	def get_field(node):
+		name = node.attrib['name']
+		try:
+			return (name, tags[name])
+		except KeyError:
+			error_exit(name)
+
+	def get_component(node):
+		return (node.attrib['name'], Component())
+
+	def get_group(node):
+		size_tag_name = node.attrib['name']
+		if size_tag_name not in tags or tags[size_tag_name].data_type != 'NUMINGROUP':
+			error_exit(size_tag_name)
+		return (group_name(path, size_tag_name), \
+				GroupTag(size_tag_name, get_block(node, tags, path + [size_tag_name,])))
+
+	# mapper
+	mapper = { 'field' : get_field, 'component' : get_component, 'group' : get_group }
+	tag_set = set()
+
+	def map_node(node):
+		name = node.attrib['name']
+		if name in tag_set: die('Duplicate tag "{}" in {}'.format(name, path_to_string(path)))
+		tag_set.add(name)
+		return mapper[node.tag](node)
+
+	# read block
+	try:
+		r = tuple(map_node(n) for n in block.iterfind('./*[@name]'))
+	except KeyError as e:
+		error_exit(e.args[0])
+	# validate
+	if not r: die('Empty ' + path_to_string(path))
+	# done
+	return r
+
+# components
+def get_components(spec, tags):
+	# { name -> block }
+	return OrderedDict((comp.attrib['name'], get_block(comp, tags, ['component', comp.attrib['name']])) \
+							for comp in spec.iterfind('./components/component[@name]'))
+
+# messages
+def get_messages(spec, tags):
+	# { name -> (type, block) }
+	r = OrderedDict((msg.attrib['name'], (msg.attrib['msgtype'], get_block(msg, tags, ['message', msg.attrib['name']]))) \
+						for msg in spec.iterfind('./messages/message[@name][@msgtype]'))
+	# validate
+	if not r: die('Empty list of messages')
+	# done
+	return r
+
+# data processors -----------------------------------------------------------------------------------
+# block iterator
+def iter_block(block, components, groups, level):
+	len_tag_name, len_tag = None, None
+	for name, tag in block:
+		if len_tag:	# previously seen length tag
+			if isinstance(tag, DataTag):	# data tag arrived
+				if len_tag.data_tag_name != name:
+					die('Mismatching data tag "{}" while expecting "{}"'.format(name, len_tag.data_tag_name))
+				yield name, tag	# yield data tag only
+				len_tag_name, len_tag = None, None	# clear the length tag
+				continue
+			else:
+				die('Length tag "{}" not followed by data tag "{}"'.format(len_tag_name, len_tag.data_tag_name))
+		# tag type match
+		if isinstance(tag, RegularTag):
+			yield name, tag
+		elif isinstance(tag, Component):
+			if name not in components: die('Unknown component "{}"'.format(name))
+			if level > 10: die('Possible loop in components, stopping at component "{}"'.format(name))
+			yield from iter_block(components[name], components, groups, level + 1)
+		elif isinstance(tag, DataLengthTag):
+			len_tag_name, len_tag = name, tag	# record, but don't yield
+		elif isinstance(tag, DataTag):
+			die('Unexpected data tag "{}"'.format(name))
+		elif isinstance(tag, GroupTag):
+			if name not in groups:
+				if level > 10: die('Possible loop in groups, stopping at group "{}"'.format(name))
+				# expand
+				tag = GroupTag(tag.size_tag_name, tuple(iter_block(tag.block, components, groups, level + 1)))
+				groups[name] = tag
+			else:
+				tag = groups[name]
+			yield name, tag
+		else:
+			die('Unknown tag "{}" of type {}'.format(name, type(tag)))
+	# check for any leftover
+	if len_tag:
+		yield len_tag_name, len_tag
+
+# filter out unused tags and groups, sort groups topologically
+def fix_groups_and_tags(tags, groups, messages, common):
+	gout = OrderedDict()
+	tout = {}
+
+	def process_block(block):
+		for name, tag in block:
+			if isinstance(tag, GroupTag):
+				tout[tag.size_tag_name] = tags[tag.size_tag_name]
+				if name not in gout:
+					topsort(name, tag)
+			else:
+				tout[name] = tag
+
+	def topsort(name, group):
+		process_block(group.block)
+		gout[name] = group
+
+	process_block(common)
+	for _, block in messages.values():
+		process_block(block)
+	return (tout, gout)
+
+# validators
+def validate_header(hdr):
+	patt = (('BeginString', RegularTag(8, 'STRING')),	\
+			('BodyLength', 	RegularTag(9, 'LENGTH')),	\
+			('MsgType', 	RegularTag(35, 'STRING')))
+	try:
+		for i, (name, tag) in enumerate(patt):
+			hname, htag = hdr[i]
+			if name != hname or tag != htag:
+				die('Invalid header: found "{}" instead of "{}" (a regular tag with value {} and type "{}")'	\
+					.format(hname, name, tag.value, tag.data_type))
+	except IndexError:
+		die('Header is too short')
+	# well, all the above fields are not needed here
+	return hdr[len(patt):]
+
+def validate_trailer(tr):
+	if not tr:
+		die('Trailer must not be empty')
+	name, tag = tr[-1]
+	if name != 'CheckSum' or tag != RegularTag(10, 'STRING'):
+		die('The last tag in trailer must be "CheckSum", a regular tag with value 10 and type "STRING"')
+	# CheckSum is not needed here
+	return tr[:-1];
+
+# message expander
+def expand_messages(messages, header, trailer, components):
+	# expand
+	groups = OrderedDict()
+	msgs = OrderedDict((name, (typ, tuple(iter_block(block, components, groups, 0))))	\
+							for name, (typ, block) in messages.items())
+	common = tuple(iter_block(chain(validate_header(header), validate_trailer(trailer)), components, groups, 0))
+	return (msgs, groups, common)
+
+# spec processor
+def extract_data(spec):
+	tags = get_tags(spec)
+	messages, groups, common = expand_messages( get_messages(spec, tags), \
+												get_block(spec.find('header'), tags, 'header'), \
+												get_block(spec.find('trailer'), tags, 'trailer'), \
+												get_components(spec, tags))
+	tags, groups = fix_groups_and_tags(tags, groups, messages, common)
+	return (tags, groups, messages, common)
+
+# header file generator -----------------------------------------------------------------------
+# tags to enum
+def tags_to_enum(tags, prefix):
+	name = prefix + '_tag_name'
+	body = ',\n\t'.join('{} = {}'.format(k, tags[k].value) for k in sorted(tags.keys()))
+	return 'typedef enum\n{{\n\t{body}\n}} {name};'.format(name = name, body = body)
+
+# message type to enum
+def msg_types_to_enum(msgs, prefix):
+	name = prefix + '_msg_type'
+	body = ',\n\t'.join('{} /* "{}" */'.format(n, msgs[n][0]) for n in sorted(msgs.keys()))
+	return 'typedef enum\n{{\n\t{body}\n}} {name};'.format(name = name, body = body)
+
+# header
+__header_fmt = \
+'''// AUTOMATICALLY GENERATED FILE - DO NOT EDIT!
+#pragma once
+#include <fix.h>
+
+#ifdef __cplusplus
+extern "C" {{
+#endif
+
+// tags
+{tags}
+
+// message types
+{msg_types}
+
+// parser constructor
+fix_parser* create_{prefix}_parser();
+
+#ifdef __cplusplus
+}}
+#endif'''
+
+# header generator
+def write_header(name, prefix, tags, msgs):
+	write_file(name, __header_fmt, { \
+		'tags' 		: tags_to_enum(tags, prefix), \
+		'msg_types' : msg_types_to_enum(msgs, prefix), \
+		'prefix' 	: prefix })
+
+# .c file generator -------------------------------------------------------------------------
+# tag to tag info converters
+@singledispatch
+def tag_to_tag_info_code(tag, name, pos):
+	die('Unknown tag "{}" of type {}'.format(name, type(tag)))
+
+@tag_to_tag_info_code.register(RegularTag)
+def regular_tag_to_tag_info_code(_, name, pos):
+	return 'REG_TAG_INFO( {}, {} )'.format(name, pos)
+
+@tag_to_tag_info_code.register(DataTag)
+def data_tag_to_tag_info_code(tag, name, pos):
+	return 'BIN_TAG_INFO( {}, {}, {} )'.format(name, tag.length_tag_value, pos)
+
+@tag_to_tag_info_code.register(GroupTag)
+def group_tag_to_tag_info_code(tag, name, pos):
+	return 'GRP_TAG_INFO( {}, {} )'.format(tag.size_tag_name, pos)
+
+__group_tag_info_fmt = \
+'''// {name}
+TAG_INFO_FUNC({name})
+	{body}
+END_TAG_INFO'''
+
+def block_to_tag_info(name, block, fmt = __group_tag_info_fmt, offset = 0):
+	return fmt.format(	\
+		name = name, \
+		body = '\n\t'.join(tag_to_tag_info_code(t, n, i + offset) for (i, (n, t)) in enumerate(block)))
+
+# helper to get the first tag of a block, name or value
+def get_first_tag(block):
+	name, tag = block[0]
+	if isinstance(tag, DataTag):
+		return tag.length_tag_value
+	elif isinstance(tag, GroupTag):
+		return tag.size_tag_name
+	else:
+		return name
+
+# tag to group info converter
+__group_info_fmt = \
+'''GROUP_INFO_FUNC({name})
+	{body}
+END_GROUP_INFO
+
+GROUP_INFO_STRUCT({name}, {node_size}, {first_tag})'''
+
+def group_info_body(block):
+	return '\n\t'.join('GROUP_INFO( {}, {} )'.format(g.size_tag_name, n) for n, g in block if isinstance(g, GroupTag))
+
+def block_to_group_info(name, block, fmt = __group_info_fmt):
+	body = group_info_body(block)
+	if body:
+		return fmt.format(	name = name, \
+							body = body, \
+							node_size = len(block), \
+							first_tag = get_first_tag(block))
+	else:
+		return 'EMPTY_GROUP_INFO({}, {}, {})'.format(name, len(block), get_first_tag(block))
+
+def block_to_code(name, block):
+	return block_to_tag_info(name, block) + '\n\n' + block_to_group_info(name, block)
+
+# common block
+__common_info_fmt = \
+'''GROUP_INFO_FUNC(common)
+	{}
+END_GROUP_INFO'''
+
+def common_block_to_code(block):
+	body = group_info_body(block)
+	if body:
+		s = __common_info_fmt.format(body)
+	else:
+		s = '#define common_group_info_func empty_group_info_func'
+	return block_to_tag_info('common', block) + '\n\n' + s
+
+# message
+__msg_tag_info_fmt = \
+'''MESSAGE_TAG_INFO_FUNC({name})
+	{body}
+END_MESSAGE_TAG_INFO'''
+
+__msg_group_info_fmt = \
+'''MESSAGE_GROUP_INFO_FUNC({name})
+	{body}
+END_MESSAGE_GROUP_INFO
+
+MESSAGE_GROUP_INFO_STRUCT({name}, {node_size})'''
+
+def message_to_group_info(name, block, hdr_size):
+	body = group_info_body(block)
+	if body:
+		return __msg_group_info_fmt.format(	name = name, \
+											body = body, \
+											node_size = hdr_size + len(block))
+	else:
+		return 'EMPTY_MESSAGE_GROUP_INFO({}, {})'.format(name, hdr_size + len(block))
+
+def message_block_to_code(name, block, hdr_size):
+	return '// ' + name + '\n' \
+		+ block_to_tag_info(name, block, __msg_tag_info_fmt, hdr_size) \
+		+ '\n\n' \
+		+ message_to_group_info(name, block, hdr_size)
+
+# parser table generator
+def make_type_tree(messages):
+	root = {}	# follow_set : { letter -> follow_set }
+	for name, (typ, _) in messages.items():
+		node = root
+		for c in typ:
+			node = node.setdefault(c, {})
+		if '' in node:
+			die('Duplicate message type "{}" found in "{}"'.format(typ, name))
+		node[''] = name
+	return root
+
+def type_cases(node, prefix, queue):
+	def gen_case(c):
+		next_node = node[c]
+		if c:
+			if len(next_node) > 1 or '' not in next_node:
+				queue.appendleft((next_node, prefix + c))
+				return 'case \'{}\': goto _{};'.format(c, prefix + c)
+			else:	# optimisation to produce less 'switch' statements
+				return 'case \'{}\': RETURN_MESSAGE_OR_NULL({});' \
+					.format(c, next_node[''])
+		else:
+			return 'case SOH: RETURN_MESSAGE({});'.format(next_node)
+
+	return '\n\t\t'.join(gen_case(c) for c in sorted(node.keys()))
+
+__type_switch_fmt = \
+'''switch(*s++)
+	{{
+		{}
+		default: return NULL;
+	}}'''
+
+def make_parser_table_body(messages):
+	def iter_body():
+		# breadth-first traversal, queue updated in type_cases() function
+		queue = deque()	# of (node, prefix) pairs
+		yield __type_switch_fmt.format(type_cases(make_type_tree(messages), '', queue))
+		fmt = '_{}:\n\t' + __type_switch_fmt
+		while queue:
+			node, prefix = queue.pop()
+			yield fmt.format(prefix, type_cases(node, prefix, queue))
+
+	return '\n'.join(s for s in iter_body())
+
+# .c file format
+__c_fmt = \
+'''// AUTOMATICALLY GENERATED FILE - DO NOT EDIT!
+#include <{base_name}.h>
+#include <spec.h>
+
+// empty group info function
+static
+const fix_group_info* empty_group_info_func(const unsigned tag __attribute__((__unused__)))
+{{
+	return NULL;
+}}
+
+// groups ----------------------------------------------------------------------------------------
+{groups}
+
+{common}
+
+// messages --------------------------------------------------------------------------------------
+{messages}
+
+// parser table ----------------------------------------------------------------------------------
+static
+const fix_message_info* {prefix}_parser_table(const fix_string msg_type)
+{{
+	const char* s = msg_type.begin;
+
+	{parser_table}
+}}
+
+// parser constructor ----------------------------------------------------------------------------
+fix_parser* create_{prefix}_parser()
+{{
+	return create_fix_parser({prefix}_parser_table, CONST_LIT("{fix_version}"));
+}}'''
+
+# code generator
+def write_code(name, file_name_base, prefix, fix_version, groups, messages, common):
+	write_file(name, __c_fmt, { \
+		'base_name'		: file_name_base, \
+		'prefix'		: prefix, \
+		'fix_version'	: fix_version, \
+		'groups'		: '\n\n'.join(block_to_code(n, g.block) for (n, g) in groups.items()), \
+		'common'		: common_block_to_code(common), \
+		'messages'		: '\n\n'.join(message_block_to_code(n, b, len(common)) for (n, (_, b)) in messages.items()), \
+		'parser_table'	: make_parser_table_body(messages) })
+
+# command line helpers ----------------------------------------------------------------------
+def check_path(name):
+	if not exists(name):
+		die('Directory "{}" does not exists or permission denied'.format(name))
+	if not isdir(name):
+		die('"{}" is not a directory'.format(name))
+	return name
+
+# entry point -------------------------------------------------------------------------------
+# command line argument parser
+argp = ArgumentParser(description = 'FIX specification compiler.')
+argp.add_argument('-i', '--header-dir', default = 'include', help = 'Output directory name for generated header')
+argp.add_argument('-s', '--source-dir', default = 'src', help = 'Output directory name for generated source file')
+argp.add_argument('input_file_name', help = 'FIX specification file name (.xml)')
+argp = argp.parse_args()
+
+# names
+file_name_base = splitext(basename(argp.input_file_name))[0]
+header_name = path_join(check_path(argp.header_dir), file_name_base + '.h')
+src_name = path_join(check_path(argp.source_dir), file_name_base + '.c')
+prefix = file_name_base.replace('.', '_')
+
+# parse input file
+spec, fix_version = parse_file(argp.input_file_name)
+
+# extract data from the spec
+tags, groups, messages, common = extract_data(spec)
+del spec
+
+# output
+write_code(src_name, file_name_base, prefix, fix_version, groups, messages, common)
+write_header(header_name, prefix, tags, messages)
