@@ -13,6 +13,7 @@ The numbers below are achieved on my 5 years old laptop with Core i5-430M 2.25GH
 on the real production hardware the results will probably be better.
 
 Compiler: gcc (Ubuntu 4.8.4-2ubuntu1~14.04) 4.8.4
+
 OS: Linux Mint 17.2 64bit
 
 FIX message type                  | FIX specification                        | Validation | Time to parse one message (average from 100 runs)
@@ -23,6 +24,6 @@ NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Y
 MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 1.294 µs/msg
 MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 1.435 µs/msg
 
-###### Platforms: Linux
+###### Platform: Linux
 
 ###### Licence: BSD 3-clause
