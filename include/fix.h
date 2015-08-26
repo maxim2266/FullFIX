@@ -47,6 +47,7 @@ extern "C"
 #define NOINLINE	__attribute__((__noinline__))
 #else
 #define PURE_FUNC
+#define NOINLINE
 #endif
 
 // string wrapper ---------------------------------------------------------------------------------
