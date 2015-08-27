@@ -10,7 +10,7 @@ in this parser the FIX specification gets converted to C code at compile time to
 ### Performance
 
 The numbers below are achieved on my 5 years old laptop with Core i5-430M 2.25GHz processor,
-on the real production hardware the results will probably be better.
+on modern production hardware the results will probably be better.
 
 Compiler: gcc (Ubuntu 4.8.4-2ubuntu1~14.04) 4.8.4
 
