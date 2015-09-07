@@ -1,6 +1,6 @@
-# UltraFIX
+# FullFIX
 
-UltraFIX is a library for parsing Financial Information eXchange (FIX) messages.
+FullFIX is a library for parsing Financial Information eXchange (FIX) messages.
 The main goal of the project is to produce the fastest software solution for FIX protocol.
 The parser does not rely on any library apart from `libc`, it does not require any
 special memory allocator and it does not impose any I/O or threading model.
