@@ -47,6 +47,12 @@ Instead, the library provides a number of conversion functions for retrieving th
 value of a tag in different formats, including a string, an integer, a double, etc.
 The same functions can also act as format validators.
 
+The parser takes raw bytes as input and provides an API for extracting messages one-by-one.
+Each message gets extracted and parsed (steps 1 and 2 above) and returned to the user
+as an efficient `tag->value` mapping. All processing happens in the same thread of execution
+to avoid any synchronisation overhead, especially  when integrating the library into 
+an existing software.
+
 ### Data representation
 All the definitions of the data types described below are located in the
 file `include/fix.h`.
@@ -433,7 +439,7 @@ void process_new_order_single(parser_context* context, fix_group* root)
 }
 ```
 
-where the clean-up function may look like the following:
+where the clean-up function is trivial and provided here just for the sake of completeness:
 
 ```c
 void free_new_order_single(new_order_single* order)
