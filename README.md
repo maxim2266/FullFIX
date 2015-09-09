@@ -30,3 +30,5 @@ NewOrderSingle('D')               | Hand-coded spec. for this message only   | Y
 NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Yes        | 0.754 µs/msg
 MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 1.294 µs/msg
 MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 1.435 µs/msg
+
+For more details see `doc/` directory of the project.
