@@ -131,7 +131,9 @@ for(const fix_parser_result* res = get_first_fix_message(parser, buff, n);
     res = get_next_fix_message(parser))
 {
     // process message
-}```
+}
+```
+
 The loop terminates when either there is no complete FIX message left in the
 input buffer, or a non-recoverable error has occurred (e.g., "Out of memory").
 Any input bytes remaining after the loop terminates are stored internally
@@ -162,7 +164,8 @@ These functions operate on a parser instance.
 ##### _Parser constructor_
 ```c
 fix_parser* create_fix_parser(const fix_message_info* (*parser_table)(const fix_string),
-                              const fix_string fix_version)```
+                              const fix_string fix_version)
+```
 Generic FIX parser constructor. Can be used to create a parser with a
 hand-coded specification, but usually it is easier to use the generated parser
 constructor instead.
@@ -175,7 +178,8 @@ Returns newly created parser instance, or `NULL` if an error has occurred.
 
 ##### _Parser destructor_
 ```c
-void free_fix_parser(fix_parser* const parser)```
+void free_fix_parser(fix_parser* const parser)
+```
 Releases the parser instance and frees its associated memory.
 
 ##### _FIX message iterator functions_
@@ -192,34 +196,40 @@ The input buffer must be valid for the duration of the loop.
 
 ##### _FIX parser status_
 ```c
-const fix_error_details* get_fix_parser_error_details(const fix_parser* const parser)```
+const fix_error_details* get_fix_parser_error_details(const fix_parser* const parser)
+```
 Returns parser status.
 
 ##### _Raw FIX message_
 ```c
-fix_string get_raw_fix_message(const fix_parser* const parser)```
+fix_string get_raw_fix_message(const fix_parser* const parser)
+```
 Returns the last parsed FIX message, as-is. Useful for logging.
 
 ##### FIX group functions
 ##### _Group iterator_
 ```c
-bool has_more_fix_nodes(fix_group* const group)```
+bool has_more_fix_nodes(fix_group* const group)
+```
 Group node iterator. Moves internal iterator to the next node. Returns 'true'
 if the iterator has been moved, or 'false' if the end of the group has been reached.
 
 ##### _Group iterator reset_
 ```c
-void reset_fix_group_iterator(fix_group* const group)```
+void reset_fix_group_iterator(fix_group* const group)
+```
 Resets the internal group node iterator to point to the first node in the group.
 
 ##### _Group size_
 ```c
-unsigned get_fix_group_size(const fix_group* const group)```
+unsigned get_fix_group_size(const fix_group* const group)
+```
 Returns the number of nodes in the group.
 
 ##### _Status_
 ```c
-const fix_error_details* get_fix_group_error_details(const fix_group* const group)```
+const fix_error_details* get_fix_group_error_details(const fix_group* const group)
+```
 Returns parser status.
 
 ##### Tag access functions
@@ -227,7 +237,8 @@ All tag access functions are named following the same pattern:
 ```c
 fix_error get_tag_as_<type>(const fix_group* const group,
                             unsigned tag,
-                            <type>* const result)```
+                            <type>* const result)
+```
 where `type` can be one of the following:
 
 |`<type>`| 'C' type | Description |
@@ -250,7 +261,8 @@ not stored.
 There is also a function to retrieve a malloc'ed copy of the tag value as a string:
 
 ```c
-fix_error copy_fix_tag_as_string(const fix_group* const group, unsigned tag, char** const result)```
+fix_error copy_fix_tag_as_string(const fix_group* const group, unsigned tag, char** const result)
+```
 
 In these functions the return code of `FE_OK` indicates that the tag is present and the conversion, if any,
 has been successful, otherwise the return code indicates the kind of error encountered.
@@ -259,45 +271,54 @@ Also, the parser status gets updated with further details of the error.
 ##### Helper functions
 ##### _Time value converter_
 ```c
-fix_error utc_timestamp_to_timeval(const utc_timestamp* const utc, struct timeval* const result)```
+fix_error utc_timestamp_to_timeval(const utc_timestamp* const utc, struct timeval* const result)
+```
 Converts `utc_timestamp` to Linux `struct timeval`.
 
 ##### _Error message composers_
 ```c
-const char* compose_fix_error_message(const fix_error_details* const details)```
+const char* compose_fix_error_message(const fix_error_details* const details)
+```
 Composes a human-readable error message from the `fix_error_details`. The resulting
 string is malloc'ed and thus must be freed after use.
 
 ```c
-const char* fix_error_to_string(fix_error code)```
+const char* fix_error_to_string(fix_error code)
+```
 Maps error code to a human-readable description. The resulting strings are
 constant and must neither be modified nor freed.
 
 ##### _Type string to type code converter_
 ```c
-int fix_message_type_to_code(const fix_parser* const parser, const fix_string s)```
+int fix_message_type_to_code(const fix_parser* const parser, const fix_string s)
+```
 Returns FIX message type code corresponding to the supplied type string. Useful
 for processing `RefMsgType` tag.
 
 ##### _String functions_
 ```c
-bool fix_string_is_empty(const fix_string s)```
+bool fix_string_is_empty(const fix_string s)
+```
 Returns 'true' if the string is empty.
 
 ```c
-size_t fix_string_length(const fix_string s)```
+size_t fix_string_length(const fix_string s)
+```
 Returns the length of the string.
 
 ```c
-fix_string fix_string_from_c_string(const char* s)```
+fix_string fix_string_from_c_string(const char* s)
+```
 Returns `fix_string` corresponding to the supplied C string.
 
 ```c
-bool fix_strings_equal(const fix_string s1, const fix_string s2)```
+bool fix_strings_equal(const fix_string s1, const fix_string s2)
+```
 Compares two strings byte-by-byte.
 
 ```c
-CONST_LIT(s)```
+CONST_LIT(s)
+```
 Zero-overhead conversion macro, maps a string literal to `fix_string`.
 
 ### Code example
@@ -312,7 +333,8 @@ typedef struct
 {
   fix_parser* parser;
   // other data
-} parser_context;```
+} parser_context;
+```
 The `parser` field is usually intialised using the generated parser
 constructor function, with the appropriate error checking, and at the end of its
 lifetime must be freed using function `free_fix_parser()`.
@@ -344,7 +366,8 @@ int parse(parser_context* context, const void* buff, unsigned n)
   free_fix_parser(context->parser);	// the parser is not usable any more
   context->parser = NULL;
   return 1;
-}```
+}
+```
 
 The function iterates over all the messages in the input buffer and then checks for
 any fatal error in the parser. Each successfully parsed FIX message is forwarded to
@@ -365,7 +388,8 @@ void dispatch_message(parser_context* context, int msg_type_code, fix_group* roo
 
 Each of the error handling functions is declared like
 ```c
-void report_error(parser_context* context, const fix_error_details* details)```
+void report_error(parser_context* context, const fix_error_details* details)
+```
 
 Finally, suppose in each message processing function all we want is just to fill in
 the corresponding "business" structure. For example, for the FIX message type `NewOrderSingle`
@@ -377,7 +401,8 @@ typedef struct
 	utc_timestamp SendingTime, TransactTime;
 	char HandlInst, OrdType, Side, TimeInForce;
 	double Price;
-} new_order_single;```
+} new_order_single;
+```
 
 The following function maps a FIX message of the type `NewOrderSingle` to `new_order_single`
 structure (some error handling and validation is omitted):
@@ -405,7 +430,8 @@ void process_new_order_single(parser_context* context, fix_group* root)
 
 	// further processing of the order
 	process_order(context, order);
-}```
+}
+```
 
 where the clean-up function may look like the following:
 
