@@ -52,7 +52,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 void* check_ptr(void* p);
 fix_string make_n_copies(size_t n, const fix_string src);
 fix_string make_n_copies_of_multiple_messages(size_t n, const fix_string src[], size_t n_src);
-bool equal_utc_timestamps(const UTC_timestamp* ts1, const UTC_timestamp* ts2);
+bool equal_utc_timestamps(const utc_timestamp* ts1, const utc_timestamp* ts2);
 void print_times(const char* test_name, size_t num_messages,
 				 const struct timespec* start, const struct timespec* stop);
 
@@ -76,7 +76,7 @@ bool valid_long(fix_group* group, unsigned tag, const long expected);
 bool valid_double(fix_group* group, unsigned tag, const double expected);
 bool valid_char(fix_group* group, unsigned tag, const char expected);
 bool valid_boolean(fix_group* group, unsigned tag, const bool expected);
-bool valid_timestamp(fix_group* group, unsigned tag, const UTC_timestamp* expected);
+bool valid_timestamp(fix_group* group, unsigned tag, const utc_timestamp* expected);
 
 // parser invocations -------------------------------------------------------------------------
 // message function

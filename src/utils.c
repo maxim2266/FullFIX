@@ -70,8 +70,8 @@ void set_fatal_error(fix_parser* const parser, fix_error code)
 	details->context = EMPTY_STR;
 }
 
-// UTC_timestamp to struct timespec converter
-fix_error UTC_timestamp_to_timeval(const UTC_timestamp* const utc, struct timeval* const result)
+// utc_timestamp to struct timespec converter
+fix_error utc_timestamp_to_timeval(const utc_timestamp* const utc, struct timeval* const result)
 {
 	if(!utc
 		|| utc->year > 9999

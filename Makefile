@@ -1,5 +1,5 @@
 SPEC = FIX44
-BIN = uf-test
+BIN = fullfix-test
 
 .PHONY: release debug release32
 release debug release32 : $(BIN)

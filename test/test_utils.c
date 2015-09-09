@@ -87,7 +87,7 @@ fix_string make_n_copies_of_multiple_messages(size_t n, const fix_string src[], 
 	return (fix_string){ msg, msg + len };
 }
 
-bool equal_utc_timestamps(const UTC_timestamp* ts1, const UTC_timestamp* ts2)
+bool equal_utc_timestamps(const utc_timestamp* ts1, const utc_timestamp* ts2)
 {
 	return ts1->year == ts2->year
 		&& ts1->month == ts2->month
@@ -194,11 +194,11 @@ bool valid_boolean(fix_group* group, unsigned tag, const bool expected)
 	return true;
 }
 
-bool valid_timestamp(fix_group* group, unsigned tag, const UTC_timestamp* expected)
+bool valid_timestamp(fix_group* group, unsigned tag, const utc_timestamp* expected)
 {
-	UTC_timestamp value = { 0, 0, 0, 0, 0, 0, 0 };
+	utc_timestamp value = { 0, 0, 0, 0, 0, 0, 0 };
 
-	GET_TAG(group, tag, value, get_fix_tag_as_UTC_timestamp);
+	GET_TAG(group, tag, value, get_fix_tag_as_utc_timestamp);
 	ENSURE(equal_utc_timestamps(&value, expected), "Tag %u - value mismatch: timestamps", tag);
 	return true;
 }
@@ -405,7 +405,7 @@ bool valid_simple_message(fix_group* const group)
 
 	return valid_long(group, 		34, 	215)
 		&& valid_string(group, 		49, 	CONST_LIT("CLIENT12"))
-		&& valid_timestamp(group, 	52, 	&(UTC_timestamp){ 2010, 2, 25, 19, 41, 57, 316 })
+		&& valid_timestamp(group, 	52, 	&(utc_timestamp){ 2010, 2, 25, 19, 41, 57, 316 })
 		&& valid_char(group, 		56, 	'B')
 		&& valid_string(group, 		1, 		CONST_LIT("Marcel"))
 		&& valid_long(group, 		11, 	13346)
@@ -414,7 +414,7 @@ bool valid_simple_message(fix_group* const group)
 		&& valid_long(group, 		44, 	5)
 		&& valid_long(group, 		54, 	1)
 		&& valid_long(group, 		59, 	0)
-		&& valid_timestamp(group, 	60, 	&(UTC_timestamp){ 2010, 2, 25, 19, 39, 52, 20 });
+		&& valid_timestamp(group, 	60, 	&(utc_timestamp){ 2010, 2, 25, 19, 39, 52, 20 });
 }
 
 bool valid_message_with_groups(fix_group* const group)
@@ -427,7 +427,7 @@ bool valid_message_with_groups(fix_group* const group)
 	bool ret = valid_char(group, 		49,		'A')
 			&& valid_char(group, 		56,		'B')
 			&& valid_long(group,		34,		12)
-			&& valid_timestamp(group,	52,		&(UTC_timestamp){ 2010, 3, 18, 3, 21, 11, 364 })
+			&& valid_timestamp(group,	52,		&(utc_timestamp){ 2010, 3, 18, 3, 21, 11, 364 })
 			&& valid_char(group,		262,	'A');
 
 	if(!ret)

@@ -175,6 +175,9 @@ const fix_error_details* get_fix_group_error_details(const fix_group* const grou
 // tag as string
 fix_error get_fix_tag_as_string(const fix_group* const group, unsigned tag, fix_string* const result);
 
+// copy tag as string
+fix_error copy_fix_tag_as_string(const fix_group* const group, unsigned tag, char** const result);
+
 // tag as group
 fix_error get_fix_tag_as_group(const fix_group* const group, unsigned tag, fix_group** const result);
 
@@ -190,27 +193,27 @@ fix_error get_fix_tag_as_double(const fix_group* const group, unsigned tag, doub
 // tag as boolean
 fix_error get_fix_tag_as_boolean(const fix_group* const group, unsigned tag, bool* const result);
 
-// tag as UTCTimestamp
+// tag as utc_timestamp
 typedef struct
 {
 	unsigned short year;
 	unsigned char month, day, hour, minute, second;
 	unsigned short millisecond;
-} UTC_timestamp;
+} utc_timestamp;
 
-fix_error get_fix_tag_as_UTC_timestamp(const fix_group* const group, unsigned tag, UTC_timestamp* const result);
+fix_error get_fix_tag_as_utc_timestamp(const fix_group* const group, unsigned tag, utc_timestamp* const result);
 
-// tag as TZTimestamp
+// tag as tz_timestamp
 typedef struct
 {
-	UTC_timestamp utc;
+	utc_timestamp utc;
 	short offset_minutes;
-} TZ_Timestamp;
+} tz_timestamp;
 
-fix_error get_fix_tag_as_TZ_timestamp(const fix_group* const group, unsigned tag, TZ_Timestamp* const result);
+fix_error get_fix_tag_as_tz_timestamp(const fix_group* const group, unsigned tag, tz_timestamp* const result);
 
 // tag as LocalMktDate
-fix_error get_fix_tag_as_LocalMktDate(const fix_group* const group, unsigned tag, UTC_timestamp* const result);
+fix_error get_fix_tag_as_LocalMktDate(const fix_group* const group, unsigned tag, utc_timestamp* const result);
 
 // tag as FIX version (for ApplVerID, DefaultApplVerID and RefApplVerID)
 typedef enum
@@ -238,15 +241,14 @@ fix_error get_fix_tag_as_fix_version(const fix_group* const group, unsigned tag,
 	double*			: get_fix_tag_as_double,	\
 	bool*			: get_fix_tag_as_boolean,	\
 	char*			: get_fix_tag_as_char,	\
-	UTC_timestamp*	: get_fix_tag_as_UTC_timestamp,	\
 	fix_group**		: get_fix_tag_as_group		\
 	fix_version*	: get_fix_tag_as_fix_version	\
 	)((g), (t), (p))
 #endif
 
 // utilities -------------------------------------------------------------------------------------
-// UTC_timestamp to struct timeval converter
-fix_error UTC_timestamp_to_timeval(const UTC_timestamp* const utc, struct timeval* const result);
+// utc_timestamp to struct timeval converter
+fix_error utc_timestamp_to_timeval(const utc_timestamp* const utc, struct timeval* const result);
 
 // error message string from fix_error_details
 const char* compose_fix_error_message(const fix_error_details* const details) NOINLINE;

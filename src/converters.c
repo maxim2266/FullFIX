@@ -32,6 +32,30 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define RETURN(r)	return group->error->code = (r)
 
+// copy tag as string
+fix_error copy_fix_tag_as_string(const fix_group* const group, unsigned tag, char** const result)
+{
+	fix_string value;
+	const fix_error err = get_fix_tag_as_string(group, tag, &value);
+
+	if(err != FE_OK)
+		return err;
+
+	if(result)
+	{
+		const size_t n = fix_string_length(value);
+		char* const p = *result = malloc(n + 1);
+
+		if(!p)
+			RETURN( FE_OUT_OF_MEMORY );
+
+		memcpy(p, value.begin, n);
+		*(p + n) = 0;
+	}
+
+	return FE_OK;
+}
+
 // tag as long integer
 fix_error get_fix_tag_as_long(const fix_group* const group, unsigned tag, long* const result)
 {
@@ -225,7 +249,7 @@ fix_error get_fix_tag_as_boolean(const fix_group* const group, unsigned tag, boo
 
 // helper to read the 'YYYYMMDD' part of the time-stamp
 static
-fix_error read_date_part(const fix_group* const group, fix_string* const ps, UTC_timestamp* const ts)
+fix_error read_date_part(const fix_group* const group, fix_string* const ps, utc_timestamp* const ts)
 {
 	// format 'YYYYMMDD', where YYYY = 0000-9999, MM = 01-12, DD = 01-31
 	const char* s = ps->begin;
@@ -252,7 +276,7 @@ fix_error read_date_part(const fix_group* const group, fix_string* const ps, UTC
 
 // helper to read 'HH:MM:SS' part of the time-stamp
 static
-fix_error read_time_part(const fix_group* const group, fix_string* const ps, UTC_timestamp* const ts)
+fix_error read_time_part(const fix_group* const group, fix_string* const ps, utc_timestamp* const ts)
 {
 	// format 'HH:MM:SS.sss', where HH = 00-23, MM = 00-59, SS = 00-60 (60 only if UTC leap second).
 	const char* s = ps->begin;
@@ -283,7 +307,7 @@ fix_error read_time_part(const fix_group* const group, fix_string* const ps, UTC
 
 // helper to read 'HH:MM:SS.sss' part of the time-stamp
 static
-fix_error read_time_ms_part(const fix_group* const group, fix_string* const ps, UTC_timestamp* const ts)
+fix_error read_time_ms_part(const fix_group* const group, fix_string* const ps, utc_timestamp* const ts)
 {
 	fix_error err = read_time_part(group, ps, ts);
 
@@ -308,7 +332,7 @@ fix_error read_time_ms_part(const fix_group* const group, fix_string* const ps, 
 
 // helper to read both date and time parts of the time-stamp string
 static
-fix_error read_timestamp_part(const fix_group* const group, fix_string* const ps, UTC_timestamp* const ts)
+fix_error read_timestamp_part(const fix_group* const group, fix_string* const ps, utc_timestamp* const ts)
 {
 	fix_error err = read_date_part(group, ps, ts);
 
@@ -324,8 +348,8 @@ fix_error read_timestamp_part(const fix_group* const group, fix_string* const ps
 	return FE_OK;
 }
 
-// tag as UTCTimestamp
-fix_error get_fix_tag_as_UTC_timestamp(const fix_group* const group, unsigned tag, UTC_timestamp* const result)
+// tag as utc_timestamp
+fix_error get_fix_tag_as_utc_timestamp(const fix_group* const group, unsigned tag, utc_timestamp* const result)
 {
 	// from the spec:
 	// 	string field representing Time/date combination represented in UTC (Universal Time Coordinated, also known as "GMT")
@@ -340,7 +364,7 @@ fix_error get_fix_tag_as_UTC_timestamp(const fix_group* const group, unsigned ta
 	if(err != FE_OK)
 		return err;
 
-	UTC_timestamp ts;
+	utc_timestamp ts;
 
 	err = read_timestamp_part(group, &value, &ts);
 
@@ -356,8 +380,8 @@ fix_error get_fix_tag_as_UTC_timestamp(const fix_group* const group, unsigned ta
 	return FE_OK;
 }
 
-// tag as TZTimestamp
-fix_error get_fix_tag_as_TZ_timestamp(const fix_group* const group, unsigned tag, TZ_Timestamp* const result)
+// tag as tz_timestamp
+fix_error get_fix_tag_as_tz_timestamp(const fix_group* const group, unsigned tag, tz_timestamp* const result)
 {
 	// from the spec:
 	// string field representing a time/date combination representing local time with an offset to UTC to allow
@@ -371,7 +395,7 @@ fix_error get_fix_tag_as_TZ_timestamp(const fix_group* const group, unsigned tag
 	if(err != FE_OK)
 		return err;
 
-	TZ_Timestamp ts;
+	tz_timestamp ts;
 
 	// date
 	err = read_date_part(group, &value, &ts.utc);
@@ -432,7 +456,7 @@ fix_error get_fix_tag_as_TZ_timestamp(const fix_group* const group, unsigned tag
 }
 
 // tag as LocalMktDate
-fix_error get_fix_tag_as_LocalMktDate(const fix_group* const group, unsigned tag, UTC_timestamp* const result)
+fix_error get_fix_tag_as_LocalMktDate(const fix_group* const group, unsigned tag, utc_timestamp* const result)
 {
 	// from the spec (FIX.5.0SP2_EP194):
 	// string field representing a Date of Local Market (as oppose to UTC) in YYYYMMDD format.

@@ -33,7 +33,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 
 static
-bool test_UTC_timestamp_to_timeval()
+bool test_utc_timestamp_to_timeval()
 {
 	struct tm now;	// in UTC
 	const time_t t = time(NULL);
@@ -44,7 +44,7 @@ bool test_UTC_timestamp_to_timeval()
 
 	strftime(orig, sizeof(orig), "%F %T", &now);
 
-	UTC_timestamp utc =
+	utc_timestamp utc =
 	{
 		.year = now.tm_year + 1900,
 		.month = now.tm_mon + 1,
@@ -57,7 +57,7 @@ bool test_UTC_timestamp_to_timeval()
 
 	struct timeval result;
 
-	ENSURE(UTC_timestamp_to_timeval(&utc, &result) == FE_OK, "Failed conversion to timeval");
+	ENSURE(utc_timestamp_to_timeval(&utc, &result) == FE_OK, "Failed conversion to timeval");
 	ENSURE(strftime(converted, sizeof(converted), "%F %T", gmtime(&result.tv_sec)) > 0, "Failed to convert resulting time_t");
 	ENSURE(strcmp(converted, orig) == 0, "Time mismatch: original \"%s\", converted \"%s\"", orig, converted);
 	ENSURE(utc.millisecond * 1000 == result.tv_usec, "Millisecond value mismatch");
@@ -69,6 +69,6 @@ void utils_test()
 {
 	puts("# Utils tests:");
 
-	test_UTC_timestamp_to_timeval();
+	test_utc_timestamp_to_timeval();
 }
 

@@ -52,7 +52,7 @@ if num_runs <= 0 or num_runs > 1000:
 # test invocation
 def test_results():
 	try:
-		output = subprocess.check_output('./uf-test', universal_newlines = True)
+		output = subprocess.check_output('./fullfix-test', universal_newlines = True)
 	except OSError as e:
 		die(str(e))
 	prefix = '-- '
