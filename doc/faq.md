@@ -13,16 +13,19 @@ validation would be useful for debugging. This leads to the idea of debug-only
 validation, possibly in the spirit of `assert()` macro. Overall, at the moment
 the FIX message builder / composer is an open question.
 
+**Q.**: _What are the supported compilers / platforms?_
+
+**A.**: The library has been tested on Linux only. The compiler used was `gcc`.
+It would certainly be interesting to try `clang`, and this is in the plans.
+Linux will probably remain the only target platform,
+at least until Microsoft provides a C11 compiler for Windows. :)
+
 **Q.**: _How about support for FIX protocol version 5.0?_
 
 **A.**: For some reason, in the version 5.0 they introduced two layers to the
 protocol: session layer and application layer. In my opinion, the declared benefits of the
 split are by far outweighed by the complications of the implementation. Supporting
 the two layers will require one more pass over the input data and one more layer of the
-specification, which will certainly hurt the performance. The FIX protocol
-used to be good for quick exchange of very focused financial data
-and assumed a reasonably simple implementation. Not any more. I think the authors of the
-standard should at some point at least attempt to implement their protocol in
-the real code to assess on the quality of some of their decisions. That does not mean
+specification, which will certainly hurt the performance. That does not mean
 the support cannot be added to this library, it all depends on if there is a substantial
 amount of interest in such a support.
