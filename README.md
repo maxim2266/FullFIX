@@ -4,15 +4,16 @@
 
 ###### Licence: BSD 3-clause
 
+###### Status: Alpha release
+
 FullFIX is a library for parsing Financial Information eXchange (FIX) messages.
 The main goal of the project is to produce the fastest software solution for FIX protocol.
 The library is written entirely in C for better portability.
-The parser does not rely on any library apart from `libc`, it does not require any
-special memory allocator and it does not impose any I/O or threading model.
+The parser depends on `libc` only and it does not impose any I/O or threading model.
 Unlike some other well known solutions, in this parser the FIX specification
-gets converted to C code at compile time to achieve the best performance.
+gets converted to efficient C code at compile time to achieve the best performance.
 
-_Supported FIX protocol versions_: up to and including v4.4.
+_Supported FIX protocol versions_: up to and including version 4.4.
 
 ### Performance
 
