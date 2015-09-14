@@ -102,11 +102,11 @@ void print_times(const char* test_name, size_t num_messages,
 				 const struct timespec* start, const struct timespec* stop)
 {
 	const double
-	t = (stop->tv_sec + stop->tv_nsec * 1e-9) - (start->tv_sec + start->tv_nsec * 1e-9),
-	rate = num_messages / (1000. * t);
+		t = (stop->tv_sec + stop->tv_nsec * 1e-9) - (start->tv_sec + start->tv_nsec * 1e-9),	// in seconds
+		rate = num_messages / t;	// messages per second
 
-	printf("-- %s: %zuK messages in %0.3f s (%.0fK msg/s, %.3f us/msg)\n",
-		   test_name, num_messages / 1000, t, rate, 1000. / rate);
+	printf("-- %s: %zuK messages in %0.3f s (%.0fK msg/s, %.3f µs/msg)\n",
+		   test_name, num_messages / 1000, t, rate / 1000., 1000000. / rate);
 }
 
 void report_error_details(const fix_error_details* const details, const char* file_name, int line_no)
