@@ -158,7 +158,11 @@ It should be noted that this library is only for parsing FIX messages and so
 the data related to the _outgoing_ messages should _not_ be included into the
 specification.
 
-It is advised to look at the sample makefile included into the project for further
+Currently the compiler is not quite strict in validating its input, some errors in the specification can
+make it through to the output without being noticed. This is one of the areas for
+future improvement.
+
+It is advised to look at the sample makefile included with the project for further
 details on how to invoke the specification compiler.
 
 ### API
