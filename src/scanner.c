@@ -26,6 +26,8 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#define _GNU_SOURCE
+
 #include "fix_impl.h"
 
 // message buffer handling
@@ -72,192 +74,263 @@ bool init_scanner(fix_parser* parser)
 	return true;
 }
 
-// a little helper
+// scanner helper functions
 static inline
 unsigned min(unsigned a, unsigned b)
 {
 	return a < b ? a : b;
 }
 
-// macros for the scanner (unsafe!)
-// error exit
-#define ERROR_EXIT(name, t)	\
-	EXIT_ ## name:	\
-		parser->body_length = state.dest - parser->body;	\
-		parser->result.error.context.end = state.dest;	\
-		parser->result.error.code = FE_ ## name;	\
-		parser->result.error.tag = (t);	\
-		return false
+static
+bool failure(fix_parser* const parser, fix_error err, unsigned tag)
+{
+	parser->body_length = parser->state.dest - parser->body;
+	parser->result.error.context.end = parser->state.dest;
+	parser->result.error.code = err;
+	parser->result.error.tag = tag;
+	return false;
+}
 
-// label name generator
-#define __LABEL(name)	EXIT_ ## name
-#define _LABEL(name)	__LABEL(name)
+static
+int next_char(scanner_state* const state)
+{
+	if(state->src == state->end)
+		return EOF;
 
-// error functions
-#define FAIL()			goto _LABEL(ERROR_CONTEXT)
-#define FAIL_IF(cond)	if(cond) FAIL()
+	const int c = CHAR_TO_INT(*state->src++);
 
-// state macro
-#define _STATE_LABEL(l) \
-	case l: if(state.src == state.end) { parser->state_label = l; goto STATE_EXIT; } else ((void)0)
+	*state->dest++ = c;
+	return c;
+}
 
-#define STATE_LABEL		_STATE_LABEL(__COUNTER__)
+static
+int next_char_cs(scanner_state* const state)
+{
+	const int c = next_char(state);
 
-#define _READ_BYTE()	*state.dest++ = (c = CHAR_TO_INT(*state.src++))
-#define _READ_BYTE_CS()	state.check_sum += CHAR_TO_INT(_READ_BYTE())
+	if(c != EOF)
+		state->check_sum += c;
 
-#define NEXT_BYTE()		STATE_LABEL; READ_BYTE()
+	return c;
+}
 
-#define MATCH_BYTE(x)	NEXT_BYTE(); FAIL_IF(c != CHAR_TO_INT(x))
-#define MATCH_NEXT		NEXT_BYTE(); switch(c) {
-#define END_MATCH		default: FAIL(); }
+// copy a chunk of 'state->counter' bytes
+static
+bool copy_chunk(scanner_state* const state)
+{
+	if(state->src == state->end)
+		return false;
 
-#define BEGIN	switch(parser->state_label) {
-#define END		default: set_fatal_error(parser, FE_INVALID_PARSER_STATE); return false; }
+	const unsigned n = min(state->end - state->src, state->counter);
 
-// scanner function
+	state->dest = __builtin_mempcpy(state->dest, state->src, n);
+	state->src += n;
+	state->counter -= n;
+	return true;
+}
+
+static
+bool copy_chunk_cs(scanner_state* const state)
+{
+	const char* s = state->src;
+
+	if(s == state->end)
+		return false;
+
+	const unsigned n = min(state->end - s, state->counter);
+	const char* const end = s + n;
+	char* p = state->dest;
+	unsigned char cs = 0;
+
+	while(s < end)
+		cs += (*p++ = *s++);
+
+	state->src = s;
+	state->dest = p;
+	state->check_sum += cs;
+	state->counter -= n;
+
+	return true;
+}
+
+static const char checksum_tag[] = "10=";
+
+// scanner
 bool extract_next_message(fix_parser* const parser)
 {
 	int c;
-	scanner_state state = parser->state;
+	scanner_state* const state = &parser->state;
 
-	BEGIN
-#define READ_BYTE		_READ_BYTE_CS
-#define ERROR_CONTEXT 	INVALID_BEGIN_STRING
+	switch(state->label)
+	{
+		case 0:	// initialisation
+			// clear previous error
+			parser->result.error = (fix_error_details){ FE_OK, 0, (fix_string){ parser->body, NULL }, EMPTY_STR };
+			parser->result.msg_type_code = -1;
 
-		STATE_LABEL;
-		state.dest = parser->body;
+			// make new state
+			state->dest = parser->body;
+			state->counter = parser->header_len;
+			state->check_sum = parser->header_checksum;
 
-		// clear previous error
-		parser->result.error = (fix_error_details){ FE_OK, 0, (fix_string){ state.dest, state.dest }, EMPTY_STR };
-		parser->result.msg_type_code = -1;
+		case 1:	// message header
+			// copy header
+			do
+			{
+				if(!copy_chunk(state))
+					return (state->label = 1, false);
+			} while(state->counter > 0);
 
-		// copy begin string
-		state.check_sum = 0;
+			// validate header
+			if(__builtin_memcmp(parser->header, state->dest - parser->header_len, parser->header_len) != 0)
+				return failure(parser, FE_INVALID_BEGIN_STRING, 8);
 
-		for(state.counter = parser->fix_version_len; ; )
-		{
-			const unsigned n = min(state.end - state.src, state.counter);
-			const char* const end = state.src + n;
+			// update context
+			parser->result.error.context.begin = state->dest;
 
-			while(state.src < end)
-				state.check_sum += CHAR_TO_INT(*state.dest++ = *state.src++);
+		case 2:	// message length (state->counter), first digit
+			switch(c = next_char_cs(state))
+			{
+				case '1' ... '9':
+					state->counter = c - '0';
+					break;
+				case EOF:
+					return (state->label = 2, false);
+				default:
+					return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
+			}
 
-			if((state.counter -= n) == 0)
-				break;
+		case 3:	// message length (state->counter), remaining digits
+			do
+			{
+				switch(c = next_char_cs(state))
+				{
+					case '0' ... '9':
+						state->counter = state->counter * 10 + c - '0';
 
-			STATE_LABEL;
-		}
+						if(state->counter > MAX_MESSAGE_LENGTH)
+							return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
+					case SOH:
+						break;
+					case EOF:
+						return (state->label = 3, false);
+					default:
+						return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
+				}
+			} while(c != SOH);
 
-		// check begin string
-		FAIL_IF(__builtin_memcmp(parser->fix_version, state.dest - parser->fix_version_len, parser->fix_version_len) != 0);
+			// validate the length
+			if(state->counter < sizeof("35=0|49=X|56=Y|34=1|") - 1)
+				return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
 
-		// update context
-		parser->result.error.context.begin = state.dest;
+			// store context
+			parser->result.error.context.end = state->dest;
 
-		// message length, goes to parser->counter
-#undef  ERROR_CONTEXT
-#define ERROR_CONTEXT 	INVALID_MESSAGE_LENGTH
-		MATCH_NEXT
-			case '1' ... '9': state.counter = c - '0'; break;
-		END_MATCH
+			// ensure enough space for message body
+			parser->frame.begin = state->dest = make_space(parser, state->dest, state->counter + sizeof("10=123|") - 1);
 
-		NEXT_BYTE();
+			if(!state->dest)
+				return false;	// out of memory
 
-		while(c >= '0' && c <= '9')
-		{
-			state.counter = state.counter * 10 + c - '0';
-			FAIL_IF(state.counter > MAX_MESSAGE_LENGTH);
-			NEXT_BYTE();
-		}
+		case 4: // message body
+			do
+			{
+				if(!copy_chunk_cs(state))
+					return (state->label = 4, false);
+			} while(state->counter > 0);
 
-		// From this point on we expect at least MsgType(35), SenderCompID(49), TargetCompID(56) and
-		// MsgSeqNum(34) tags to be present in every message, for example:
-		// 35=0|49=X|56=Y|34=1|
-		// which gives us the minimum message length
-		FAIL_IF(c != SOH || state.counter < sizeof("35=0|49=X|56=Y|34=1|") - 1);
+			// validate
+			if(*(state->dest - 1) != SOH)
+			{
+				set_error(&parser->result.error, FE_INVALID_MESSAGE_LENGTH, 9);	// preserving the error context
+				return false;
+			}
 
-		// store context before possible reallocation
-		parser->result.error.context.end = state.dest;
+			// update context
+			parser->frame.end = parser->result.error.context.begin = state->dest;
 
-		// allocate space for message body
-		state.dest = make_space(parser, state.dest, state.counter + sizeof("10=123|") - 1);
+		case 5: // checksum tag
+			do
+			{
+				if((c = next_char(state)) == EOF)
+					return (state->label = 5, false);
 
-		if(!state.dest)
-			return false;	// out of memory
+				if(c != CHAR_TO_INT(checksum_tag[state->counter]))
+					return failure(parser, FE_INVALID_TRAILER, 10);
+			} while(++state->counter < sizeof(checksum_tag) - 1);	// initially state->counter is 0 from the previous state
 
-		parser->frame.begin = state.dest;
+		case 6: // checksum (state->counter), first digit
+			switch(c = next_char(state))
+			{
+				case '0' ... '2':
+					state->counter = c - '0';
+					break;
+				case EOF:
+					return (state->label = 6, false);
+				default:
+					return failure(parser, FE_INVALID_TRAILER, 10);
+			}
 
-		// copy message body, parser->counter bytes in total
-		do
-		{
-			STATE_LABEL;
+		case 7: // checksum (state->counter), second digit
+			switch(c = next_char(state))
+			{
+				case '0' ... '9':
+					state->counter = state->counter * 10 + c - '0';
+					break;
+				case EOF:
+					return (state->label = 7, false);
+				default:
+					return failure(parser, FE_INVALID_TRAILER, 10);
+			}
 
-			const unsigned n = min(state.end - state.src, state.counter);
-			const char* const end = state.src + n;
+		case 8: // checksum (state->counter), third digit
+			switch(c = next_char(state))
+			{
+				case '0' ... '9':
+					state->counter = state->counter * 10 + c - '0';
+					break;
+				case EOF:
+					return (state->label = 8, false);
+				default:
+					return failure(parser, FE_INVALID_TRAILER, 10);
+			}
 
-			while(state.src < end)
-				state.check_sum += CHAR_TO_INT(*state.dest++ = *state.src++);
+			// validate
+			if(state->counter > 255)
+				return failure(parser, FE_INVALID_TRAILER, 10);
 
-			state.counter -= n;
-		} while(state.counter > 0);
+		case 9: // final SOH
+			switch(c = next_char(state))
+			{
+				case SOH:
+					break;
+				case EOF:
+					return (state->label = 9, false);
+				default:
+					return failure(parser, FE_INVALID_TRAILER, 10);
+			}
 
-		if(*(state.dest - 1) != SOH)	// not FAIL_IF() to preserve the context
-		{
-			set_error(&parser->result.error, FE_INVALID_MESSAGE_LENGTH, 9);
+			// complete message body
+			parser->body_length = state->dest - parser->body;
+
+			// compare checksum
+			if(state->counter == (unsigned)state->check_sum)
+				set_error_ctx(&parser->result.error, FE_OK, 0, EMPTY_STR);	// all fine
+			else
+			{	// invalid checksum - a recoverable error
+				set_error(&parser->result.error, FE_INVALID_VALUE, 10);
+				parser->result.error.context.end = state->dest - 1;
+			}
+
+			// all done
+			state->label = 0;
+			return true;
+
+		default:
+			set_fatal_error(parser, FE_INVALID_PARSER_STATE);
 			return false;
-		}
-
-#undef  READ_BYTE
-#define READ_BYTE		_READ_BYTE
-#undef  ERROR_CONTEXT
-#define ERROR_CONTEXT 	INVALID_TRAILER
-
-		// CheckSum, goes to state.counter
-		parser->frame.end = parser->result.error.context.begin = state.dest;
-
-		MATCH_BYTE('1');
-		MATCH_BYTE('0');
-		MATCH_BYTE('=');
-
-		MATCH_NEXT
-			case '0' ... '2': state.counter = (c - '0') * 100; break;
-		END_MATCH
-
-		MATCH_NEXT
-			case '0' ... '9': state.counter += (c - '0') * 10; break;
-		END_MATCH
-
-		MATCH_NEXT
-			case '0' ... '9': state.counter += (c - '0'); break;
-		END_MATCH
-
-		MATCH_BYTE(SOH);
-
-		// complete message body
-		parser->body_length = state.dest - parser->body;
-
-		// result
-		if(state.counter == (0xFFu & state.check_sum))
-			set_error_ctx(&parser->result.error, FE_OK, 0, EMPTY_STR);	// all fine
-		else
-		{	// invalid checksum - a recoverable error
-			set_error(&parser->result.error, FE_INVALID_VALUE, 10);
-			parser->result.error.context.end = state.dest - 1;
-		}
-
-		// save state
-		parser->state = state;
-		parser->state_label = 0;
-		return true;
-	END
-
-STATE_EXIT:
-	parser->state = state;
-	return false;
-
-	// exits
-	ERROR_EXIT( INVALID_BEGIN_STRING, 	8 );
-	ERROR_EXIT( INVALID_MESSAGE_LENGTH, 9 );
-	ERROR_EXIT( INVALID_TRAILER, 		10 );
+	}
 }
+
+
+

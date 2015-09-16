@@ -57,7 +57,9 @@ typedef struct
 {
 	const char *src, *end;
 	char* dest;
-	unsigned counter, check_sum;
+	unsigned counter;
+	int label;
+	unsigned char check_sum;
 } scanner_state;
 
 // parser
@@ -68,7 +70,6 @@ struct fix_parser
 
 	// scanner state
 	scanner_state state;
-	int state_label;
 
 	// raw message frame
 	fix_string frame;
@@ -81,9 +82,12 @@ struct fix_parser
 	unsigned root_capacity;	// max number of tag_value's
 
 	// parser settings
-	char fix_version[sizeof("8=FIXT.1.1|9=") - 1];
-	unsigned fix_version_len;
 	const fix_message_info* (*parser_table)(const fix_string);
+
+	// FIX message header
+	char header[sizeof("8=FIXT.1.1|9=") - 1];
+	unsigned header_len;
+	unsigned char header_checksum;
 };
 
 // parser configuration

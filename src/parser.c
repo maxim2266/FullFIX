@@ -524,15 +524,21 @@ fix_parser* create_fix_parser(const fix_message_info* (*parser_table)(const fix_
 	parser->parser_table = parser_table;
 
 	// FIX begin string (e.g. "8=FIXT.1.1|9=")
-	char* p = parser->fix_version;
+	char* p = parser->header;
 
 	*p++ = '8';
 	*p++ = '=';
-	p = mempcpy(p, fix_version.begin, fix_string_length(fix_version));
+
+	unsigned char checksum = '8' + '=' + SOH + '9' + '=';
+
+	for(const char* s = fix_version.begin; s < fix_version.end; )
+		checksum += (*p++ = *s++);
+
+	parser->header_checksum = checksum;
 	*p++ = SOH;
 	*p++ = '9';
 	*p++ = '=';
-	parser->fix_version_len = p - parser->fix_version;
+	parser->header_len = p - parser->header;
 
 	// error code
 	parser->result.error.code = FE_OK;
