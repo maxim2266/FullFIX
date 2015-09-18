@@ -82,16 +82,6 @@ unsigned min(unsigned a, unsigned b)
 }
 
 static
-bool failure(fix_parser* const parser, fix_error err, unsigned tag)
-{
-	parser->body_length = parser->state.dest - parser->body;
-	parser->result.error.context.end = parser->state.dest;
-	parser->result.error.code = err;
-	parser->result.error.tag = tag;
-	return false;
-}
-
-static
 int next_char(scanner_state* const state)
 {
 	if(state->src == state->end)
@@ -182,8 +172,8 @@ bool extract_next_message(fix_parser* const parser)
 			} while(state->counter > 0);
 
 			// validate header
-			if(__builtin_memcmp(parser->header, state->dest - parser->header_len, parser->header_len) != 0)
-				return failure(parser, FE_INVALID_BEGIN_STRING, 8);
+			if(__builtin_memcmp(parser->header, parser->body, parser->header_len) != 0)
+				goto BEGIN_STRING_FAILURE;
 
 			// update context
 			parser->result.error.context.begin = state->dest;
@@ -197,7 +187,7 @@ bool extract_next_message(fix_parser* const parser)
 				case EOF:
 					return (state->label = 2, false);
 				default:
-					return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
+					goto MESSAGE_LENGTH_FAILURE;
 			}
 
 		case 3:	// message length (state->counter), remaining digits
@@ -209,19 +199,19 @@ bool extract_next_message(fix_parser* const parser)
 						state->counter = state->counter * 10 + c - '0';
 
 						if(state->counter > MAX_MESSAGE_LENGTH)
-							return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
+							goto MESSAGE_LENGTH_FAILURE;
 					case SOH:
 						break;
 					case EOF:
 						return (state->label = 3, false);
 					default:
-						return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
+						goto MESSAGE_LENGTH_FAILURE;
 				}
 			} while(c != SOH);
 
 			// validate the length
 			if(state->counter < sizeof("35=0|49=X|56=Y|34=1|") - 1)
-				return failure(parser, FE_INVALID_MESSAGE_LENGTH, 9);
+				goto MESSAGE_LENGTH_FAILURE;
 
 			// store context
 			parser->result.error.context.end = state->dest;
@@ -256,7 +246,7 @@ bool extract_next_message(fix_parser* const parser)
 					return (state->label = 5, false);
 
 				if(c != CHAR_TO_INT(checksum_tag[state->counter]))
-					return failure(parser, FE_INVALID_TRAILER, 10);
+					goto TRAILER_FAILURE;
 			} while(++state->counter < sizeof(checksum_tag) - 1);	// initially state->counter is 0 from the previous state
 
 		case 6: // checksum (state->counter), first digit
@@ -268,7 +258,7 @@ bool extract_next_message(fix_parser* const parser)
 				case EOF:
 					return (state->label = 6, false);
 				default:
-					return failure(parser, FE_INVALID_TRAILER, 10);
+					goto TRAILER_FAILURE;
 			}
 
 		case 7: // checksum (state->counter), second digit
@@ -280,7 +270,7 @@ bool extract_next_message(fix_parser* const parser)
 				case EOF:
 					return (state->label = 7, false);
 				default:
-					return failure(parser, FE_INVALID_TRAILER, 10);
+					goto TRAILER_FAILURE;
 			}
 
 		case 8: // checksum (state->counter), third digit
@@ -292,23 +282,19 @@ bool extract_next_message(fix_parser* const parser)
 				case EOF:
 					return (state->label = 8, false);
 				default:
-					return failure(parser, FE_INVALID_TRAILER, 10);
+					goto TRAILER_FAILURE;
 			}
 
 			// validate
 			if(state->counter > 255)
-				return failure(parser, FE_INVALID_TRAILER, 10);
+				goto TRAILER_FAILURE;
 
 		case 9: // final SOH
-			switch(c = next_char(state))
-			{
-				case SOH:
-					break;
-				case EOF:
-					return (state->label = 9, false);
-				default:
-					return failure(parser, FE_INVALID_TRAILER, 10);
-			}
+			if(state->src == state->end)
+				return (state->label = 9, false);
+
+			if((*state->dest++ = *state->src++) != SOH)
+				goto TRAILER_FAILURE;
 
 			// complete message body
 			parser->body_length = state->dest - parser->body;
@@ -330,6 +316,26 @@ bool extract_next_message(fix_parser* const parser)
 			set_fatal_error(parser, FE_INVALID_PARSER_STATE);
 			return false;
 	}
+
+BEGIN_STRING_FAILURE:
+	parser->result.error.code = FE_INVALID_BEGIN_STRING;
+	parser->result.error.tag = 8;
+	goto EXIT;
+
+MESSAGE_LENGTH_FAILURE:
+	parser->result.error.code = FE_INVALID_MESSAGE_LENGTH;
+	parser->result.error.tag = 9;
+	goto EXIT;
+
+TRAILER_FAILURE:
+	parser->result.error.code = FE_INVALID_TRAILER;
+	parser->result.error.tag = 10;
+	goto EXIT;
+
+EXIT:
+	parser->result.error.context.end = state->dest;
+	parser->body_length = state->dest - parser->body;
+	return false;
 }
 
 
