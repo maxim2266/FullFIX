@@ -130,7 +130,7 @@ bool duplicate_tag_validator(const fix_parser_result* const res, const fix_strin
 	ENSURE(details->code == FE_DUPLICATE_TAG, "Unexpected error %d", (int)details->code);
 	ENSURE(details->tag == 269, "Unexpected error tag %u", details->tag);
 	ENSURE(fix_strings_equal(details->context, CONST_LIT("269=")),
-		   "Unexpected details data: \"%.*s\"", (int)fix_string_length(details->context), details->context.begin);
+		   "Unexpected error context: \"%.*s\"", (int)fix_string_length(details->context), details->context.begin);
 
 	return true;
 }
@@ -150,7 +150,7 @@ bool mixed_messages_validator(const fix_parser_result* const res, const fix_stri
 		ENSURE(details->code == FE_DUPLICATE_TAG, "Unexpected error %d", (int)details->code);
 		ENSURE(details->tag == 269, "Unexpected error tag %u", details->tag);
 		ENSURE(fix_strings_equal(details->context, CONST_LIT("269=")),
-			"Unexpected details data: \"%.*s\"", (int)fix_string_length(details->context), details->context.begin);
+			"Unexpected error context: \"%.*s\"", (int)fix_string_length(details->context), details->context.begin);
 
 		return true;
 	}

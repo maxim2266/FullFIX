@@ -75,7 +75,7 @@ bool init_scanner(fix_parser* parser)
 }
 
 // scanner helper functions
-static inline
+static
 unsigned min(unsigned a, unsigned b)
 {
 	return a < b ? a : b;
@@ -84,63 +84,44 @@ unsigned min(unsigned a, unsigned b)
 static
 int next_char(scanner_state* const state)
 {
-	if(state->src == state->end)
-		return EOF;
-
-	const int c = CHAR_TO_INT(*state->src++);
-
-	*state->dest++ = c;
-	return c;
-}
-
-static
-int next_char_cs(scanner_state* const state)
-{
-	const int c = next_char(state);
-
-	if(c != EOF)
-		state->check_sum += c;
-
-	return c;
+	return (state->src != state->end) ? CHAR_TO_INT(*state->dest++ = *state->src++) : EOF;
 }
 
 // copy a chunk of 'state->counter' bytes
 static
 bool copy_chunk(scanner_state* const state)
 {
-	if(state->src == state->end)
-		return false;
+	const char* const s = state->src;
+	const unsigned n = min(state->end - s, state->counter);
 
-	const unsigned n = min(state->end - state->src, state->counter);
-
-	state->dest = __builtin_mempcpy(state->dest, state->src, n);
-	state->src += n;
+	state->dest = mempcpy(state->dest, s, n);
+	state->src = s + n;
 	state->counter -= n;
-	return true;
+	return state->counter == 0;
+}
+
+static
+unsigned char copy_cs(char* restrict dest, const char* restrict src, unsigned n)
+{
+	unsigned char cs = (*dest++ = *src++);
+
+	while(--n > 0)
+		cs += (*dest++ = *src++);
+
+	return cs;
 }
 
 static
 bool copy_chunk_cs(scanner_state* const state)
 {
 	const char* s = state->src;
-
-	if(s == state->end)
-		return false;
-
 	const unsigned n = min(state->end - s, state->counter);
-	const char* const end = s + n;
-	char* p = state->dest;
-	unsigned char cs = 0;
 
-	while(s < end)
-		cs += (*p++ = *s++);
-
-	state->src = s;
-	state->dest = p;
-	state->check_sum += cs;
+	state->check_sum += copy_cs(state->dest, s, n);
+	state->src = s + n;
+	state->dest += n;
 	state->counter -= n;
-
-	return true;
+	return state->counter == 0;
 }
 
 static const char checksum_tag[] = "10=";
@@ -161,28 +142,27 @@ bool extract_next_message(fix_parser* const parser)
 			// make new state
 			state->dest = parser->body;
 			state->counter = parser->header_len;
-			state->check_sum = parser->header_checksum;
 
 		case 1:	// message header
 			// copy header
-			do
-			{
-				if(!copy_chunk(state))
-					return (state->label = 1, false);
-			} while(state->counter > 0);
+			if(state->src == state->end || !copy_chunk(state))
+				return (state->label = 1, false);
 
 			// validate header
-			if(__builtin_memcmp(parser->header, parser->body, parser->header_len) != 0)
+			if(memcmp(parser->header, parser->body, parser->header_len) != 0)
 				goto BEGIN_STRING_FAILURE;
+
+			state->check_sum = parser->header_checksum;
 
 			// update context
 			parser->result.error.context.begin = state->dest;
 
 		case 2:	// message length (state->counter), first digit
-			switch(c = next_char_cs(state))
+			switch(c = next_char(state))
 			{
 				case '1' ... '9':
 					state->counter = c - '0';
+					state->check_sum += c;
 					break;
 				case EOF:
 					return (state->label = 2, false);
@@ -193,7 +173,7 @@ bool extract_next_message(fix_parser* const parser)
 		case 3:	// message length (state->counter), remaining digits
 			do
 			{
-				switch(c = next_char_cs(state))
+				switch(c = next_char(state))
 				{
 					case '0' ... '9':
 						state->counter = state->counter * 10 + c - '0';
@@ -201,6 +181,7 @@ bool extract_next_message(fix_parser* const parser)
 						if(state->counter > MAX_MESSAGE_LENGTH)
 							goto MESSAGE_LENGTH_FAILURE;
 					case SOH:
+						state->check_sum += c;
 						break;
 					case EOF:
 						return (state->label = 3, false);
@@ -223,11 +204,9 @@ bool extract_next_message(fix_parser* const parser)
 				return false;	// out of memory
 
 		case 4: // message body
-			do
-			{
-				if(!copy_chunk_cs(state))
-					return (state->label = 4, false);
-			} while(state->counter > 0);
+			// copy
+			if(state->src == state->end || !copy_chunk_cs(state))
+				return (state->label = 4, false);
 
 			// validate
 			if(*(state->dest - 1) != SOH)
