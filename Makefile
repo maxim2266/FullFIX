@@ -17,7 +17,7 @@ CC = gcc -std=c11
 
 release release32 : CFLAGS = -O3 -Wall -Wextra -Iinclude -march=native -mtune=native \
 -fomit-frame-pointer -Wl,--as-needed -flto -ffunction-sections -fdata-sections -Wl,--gc-sections \
--DNDEBUG -DRELEASE
+-DNDEBUG -DRELEASE -DUSE_SSE
 
 debug : CFLAGS = -g -Wall -Wextra -Iinclude -DDEBUG
 

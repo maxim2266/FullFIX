@@ -30,6 +30,10 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "fix_impl.h"
 
+#ifdef USE_SSE
+#include <xmmintrin.h>
+#endif
+
 // message buffer handling
 static
 char* make_space(fix_parser* const parser, char* dest, unsigned extra_len)
@@ -103,9 +107,36 @@ bool copy_chunk(scanner_state* const state)
 static
 unsigned char copy_cs(char* restrict dest, const char* restrict src, unsigned n)
 {
-	unsigned char cs = (*dest++ = *src++);
+	unsigned char cs = 0;
 
-	while(--n > 0)
+#ifdef USE_SSE
+	if(n >= sizeof(__m128i))
+	{
+		__m128i cs128 = _mm_loadu_si128((const __m128i*)src);
+
+		src += sizeof(__m128i);
+		_mm_storeu_si128((__m128i*)dest, cs128);
+		dest += sizeof(__m128i);
+
+		while((n -= sizeof(__m128i)) >= sizeof(__m128i))
+		{
+			const __m128i tmp = _mm_loadu_si128((const __m128i*)src);
+
+			src += sizeof(__m128i);
+			_mm_storeu_si128((__m128i*)dest, tmp);
+			dest += sizeof(__m128i);
+			cs128 = _mm_add_epi8(cs128, tmp);
+		}
+
+		cs128 = _mm_add_epi8(cs128, _mm_srli_si128(cs128, 8));
+		cs128 = _mm_add_epi8(cs128, _mm_srli_si128(cs128, 4));
+		cs128 = _mm_add_epi8(cs128, _mm_srli_si128(cs128, 2));
+		cs128 = _mm_add_epi8(cs128, _mm_srli_si128(cs128, 1));
+		cs += _mm_extract_epi16(cs128, 0);	// SSE4: _mm_extract_epi8 ?
+	}
+#endif	// #ifdef USE_SSE
+
+	while(n-- > 0)
 		cs += (*dest++ = *src++);
 
 	return cs;

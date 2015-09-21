@@ -26,10 +26,10 @@ _OS:_ Linux Mint 17.2 64bit
 
 FIX message type                  | FIX specification                        | Validation | Average time to parse one message
 ----------------------------------|------------------------------------------|------------|--------------------------------------------------
-NewOrderSingle('D')               | Hand-coded spec. for this message only   | No         | 0.328 µs/msg
-NewOrderSingle('D')               | Hand-coded spec. for this message only   | Yes        | 0.561 µs/msg
-NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Yes        | 0.734 µs/msg
-MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 1.280 µs/msg
-MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 1.418 µs/msg
+NewOrderSingle('D')               | Hand-coded spec. for this message only   | No         | 0.338 µs/msg
+NewOrderSingle('D')               | Hand-coded spec. for this message only   | Yes        | 0.550 µs/msg
+NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Yes        | 0.765 µs/msg
+MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 1.245 µs/msg
+MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 1.392 µs/msg
 
 For more details see `doc/` directory of the project.
