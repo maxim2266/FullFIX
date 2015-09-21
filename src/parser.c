@@ -110,38 +110,38 @@ bool prepare_root_group(fix_parser* const parser, const fix_group_info* const in
 
 // read FIX uint
 static
-unsigned read_uint(const char* s, const char** end)
+unsigned read_uint(fix_parser* const parser, const char delim)
 {
-	unsigned r;
-	int c = CHAR_TO_INT(*s);
+	const char* s = parser->result.error.context.begin = parser->frame.begin;
 
-	switch(c)
+	// assuming (s < parser->frame.end) and *(parser->frame.end - 1) == SOH
+
+	unsigned tag = CHAR_TO_INT(*s++) - '0';
+
+	if(tag == 0 || tag > 9)	// leading zeroes are not allowed
+		goto ERROR_EXIT;
+
+	for(unsigned c = CHAR_TO_INT(*s++); c != CHAR_TO_INT(delim); c = CHAR_TO_INT(*s++))
 	{
-		case '1' ... '9':
-			r = c - '0';
-			break;
-		default:
-			*end = s;
-			return 0;	// error: invalid first digit
+		c -= '0';
+
+		if(c > 9)	// not a digit
+			goto ERROR_EXIT;
+
+		c = tag * 10 + c;
+
+		if(c < tag)	// overflow
+			goto ERROR_EXIT;
+
+		tag = c;
 	}
 
-	for(int i = 0; i < 9; ++i)	// up to 9 digits
-	{
-		c = CHAR_TO_INT(*++s);
+	parser->result.error.context.end = parser->frame.begin = s;
+	return tag;
 
-		switch(c)
-		{
-			case '0' ... '9':
-				r = r * 10 + (c - '0');
-				break;
-			default:
-				*end = s;
-				return r;	// conversion complete
-		}
-	}
-
-	*end = s;
-	return 0;	// error: more than 9 digits
+ERROR_EXIT:
+	parser->result.error.context.end = s;
+	return 0;
 }
 
 // read next tag code
@@ -150,38 +150,32 @@ unsigned read_uint(const char* s, const char** end)
 static
 unsigned next_tag(fix_parser* const parser)
 {
-	fix_error_details* const details = &parser->result.error;
-	const char* s = parser->frame.begin;
-
-	if(s >= parser->frame.end)	// end of input
+	if(parser->frame.begin == parser->frame.end)	// end of input
 	{
-		set_error_ctx(details, FE_OK, 0, EMPTY_STR);
+		set_error_ctx(&parser->result.error, FE_OK, 0, EMPTY_STR);
 		return 0;
 	}
 
 	// read tag
-	const char* e;
-	const unsigned tag = details->tag = read_uint(s, &e);
-	const char b = *e++;
+	unsigned tag = read_uint(parser, '=');
 
-	details->context = (fix_string){ s, e };
-
-	// check the tag
-	if(b != '=' || tag == 0)
+	if(tag == 0)	// invalid tag
 	{
-		details->code = FE_INVALID_TAG;
+		parser->result.error.code = FE_INVALID_TAG;
+		parser->result.error.tag = 0;
 		return 0;
 	}
 
-	if(e >= parser->frame.end)	// empty tag value
+	parser->result.error.tag = tag;
+
+	if(parser->frame.begin == parser->frame.end)	// empty tag value
 	{
-		details->code = FE_EMPTY_VALUE;
+		parser->result.error.code = FE_EMPTY_VALUE;
 		return 0;
 	}
 
-	// OK
-	parser->frame.begin = e;	// advance frame
-	details->code = FE_OK;		// clear error
+	// all done
+	parser->result.error.code = FE_OK;
 	return tag;
 }
 
@@ -210,24 +204,16 @@ bool match_next_tag(fix_parser* const parser, unsigned tag)
 static
 unsigned read_uint_value(fix_parser* const parser)
 {
-	const char* end;
-	const unsigned val = read_uint(parser->frame.begin, &end);
+	const unsigned val = read_uint(parser, SOH);
 
-	// set context
-
-	// check the value
-	if(*end != SOH)
+	if(val != 0)
 	{
-		parser->result.error.code = FE_INCORRECT_VALUE_FORMAT;
-		parser->result.error.context.end = end + 1;
-		return 0;
+		parser->result.error.code = FE_OK;
+		return val;
 	}
 
-	// OK
-	parser->result.error.code = FE_OK;
-	parser->result.error.context.end = end;
-	parser->frame.begin = end + 1;	// advance frame
-	return val;
+	parser->result.error.code = FE_INCORRECT_VALUE_FORMAT;
+	return 0;
 }
 
 // read bytes to the first SOH, i.e., a FIX string
@@ -286,8 +272,10 @@ void read_string_and_get_next(fix_parser* const parser, tag_value* const result)
 {
 	if(result)
 	{
-		result->value = read_string(parser);
-		next_tag(parser);
+		if(fix_string_is_empty(result->value = read_string(parser)))
+			parser->result.error.code = FE_EMPTY_VALUE;
+		else
+			next_tag(parser);
 	}
 }
 
