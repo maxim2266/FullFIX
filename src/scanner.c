@@ -155,7 +155,16 @@ bool copy_chunk_cs(scanner_state* const state)
 	return state->counter == 0;
 }
 
-static const char checksum_tag[] = "10=";
+static
+bool valid_checksum(const scanner_state* const state)
+{
+	const unsigned
+		cs2 = CHAR_TO_INT(state->dest[-4]) - '0',
+		cs1 = CHAR_TO_INT(state->dest[-3]) - '0',
+		cs0 = CHAR_TO_INT(state->dest[-2]) - '0';
+
+	return cs2 <= 9 && cs1 <= 9 && cs0 <= 9 && CHAR_TO_INT(state->check_sum) == cs2 * 100 + cs1 * 10 + cs0;
+}
 
 // scanner
 bool extract_next_message(fix_parser* const parser)
@@ -249,74 +258,29 @@ bool extract_next_message(fix_parser* const parser)
 			// update context
 			parser->frame.end = parser->result.error.context.begin = state->dest;
 
-		case 5: // checksum tag
-			do
-			{
-				if((c = next_char(state)) == EOF)
-					return (state->label = 5, false);
+			// prepare for trailer
+			state->counter = sizeof("10=123|") - 1;
 
-				if(c != CHAR_TO_INT(checksum_tag[state->counter]))
-					goto TRAILER_FAILURE;
-			} while(++state->counter < sizeof(checksum_tag) - 1);	// initially state->counter is 0 from the previous state
-
-		case 6: // checksum (state->counter), first digit
-			switch(c = next_char(state))
-			{
-				case '0' ... '2':
-					state->counter = c - '0';
-					break;
-				case EOF:
-					return (state->label = 6, false);
-				default:
-					goto TRAILER_FAILURE;
-			}
-
-		case 7: // checksum (state->counter), second digit
-			switch(c = next_char(state))
-			{
-				case '0' ... '9':
-					state->counter = state->counter * 10 + c - '0';
-					break;
-				case EOF:
-					return (state->label = 7, false);
-				default:
-					goto TRAILER_FAILURE;
-			}
-
-		case 8: // checksum (state->counter), third digit
-			switch(c = next_char(state))
-			{
-				case '0' ... '9':
-					state->counter = state->counter * 10 + c - '0';
-					break;
-				case EOF:
-					return (state->label = 8, false);
-				default:
-					goto TRAILER_FAILURE;
-			}
-
-			// validate
-			if(state->counter > 255)
-				goto TRAILER_FAILURE;
-
-		case 9: // final SOH
-			if(state->src == state->end)
-				return (state->label = 9, false);
-
-			if((*state->dest++ = *state->src++) != SOH)
-				goto TRAILER_FAILURE;
+		case 5: // trailer
+			// copy
+			if(state->src == state->end || !copy_chunk(state))
+				return (state->label = 5, false);
 
 			// complete message body
 			parser->body_length = state->dest - parser->body;
 
+			// validate
+			if(state->dest[-7] != '1' || state->dest[-6] != '0' || state->dest[-5] != '=' || state->dest[-1] != SOH)
+				goto TRAILER_FAILURE;
+
 			// compare checksum
-			if(state->counter == (unsigned)state->check_sum)
-				set_error_ctx(&parser->result.error, FE_OK, 0, EMPTY_STR);	// all fine
-			else
+			if(!valid_checksum(state))
 			{	// invalid checksum - a recoverable error
 				set_error(&parser->result.error, FE_INVALID_VALUE, 10);
 				parser->result.error.context.end = state->dest - 1;
 			}
+			else // all fine
+				set_error_ctx(&parser->result.error, FE_OK, 0, EMPTY_STR);
 
 			// all done
 			state->label = 0;
