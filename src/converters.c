@@ -509,7 +509,7 @@ fix_error get_fix_tag_as_LocalMktDate(const fix_group* const group, unsigned tag
 }
 
 // tag as FIX version
-#define CODE	CCY_CODE
+#define CODE(a, b, c)	(CHAR_TO_INT(a) + (CHAR_TO_INT(b) << 8) + (CHAR_TO_INT(c) << 16))
 
 fix_error get_fix_tag_as_fix_version(const fix_group* const group, unsigned tag, fix_version* const result)
 {

@@ -34,11 +34,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // helper macros
 #define CHAR_TO_INT(c) ((int)(unsigned char)(c))
-#define STRINGIFY(x) #x
 #define NONE ((unsigned)-1)
-
-// currency code support
-#define CCY_CODE(a, b, c)		(CHAR_TO_INT(a) + (CHAR_TO_INT(b) << 8) + (CHAR_TO_INT(c) << 16))
 
 // literals
 #define LIT(s)		{ s "", s + sizeof(s) - 1 }
