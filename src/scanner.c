@@ -99,26 +99,26 @@ bool copy_chunk(scanner_state* const state)
 }
 
 static
-unsigned char copy_cs(char* restrict dest, const char* restrict src, unsigned n)
+unsigned char copy_cs(char* restrict p, const char* restrict s, unsigned n)
 {
 	unsigned char cs = 0;
 
 #ifdef USE_SSE
-	if(n >= sizeof(__m128i))
+	if(n >= 16)
 	{
-		__m128i cs128 = _mm_loadu_si128((const __m128i*)src);
+		__m128i cs128 = _mm_loadu_si128((const __m128i*)s);
 
-		src += sizeof(__m128i);
-		_mm_storeu_si128((__m128i*)dest, cs128);
-		dest += sizeof(__m128i);
+		s += 16;
+		_mm_storeu_si128((__m128i*)p, cs128);
+		p += 16;
 
-		while((n -= sizeof(__m128i)) >= sizeof(__m128i))
+		while((n -= 16) >= 16)
 		{
-			const __m128i tmp = _mm_loadu_si128((const __m128i*)src);
+			const __m128i tmp = _mm_loadu_si128((const __m128i*)s);
 
-			src += sizeof(__m128i);
-			_mm_storeu_si128((__m128i*)dest, tmp);
-			dest += sizeof(__m128i);
+			s += 16;
+			_mm_storeu_si128((__m128i*)p, tmp);
+			p += 16;
 			cs128 = _mm_add_epi8(cs128, tmp);
 		}
 
@@ -128,10 +128,24 @@ unsigned char copy_cs(char* restrict dest, const char* restrict src, unsigned n)
 		cs128 = _mm_add_epi8(cs128, _mm_srli_si128(cs128, 1));
 		cs += _mm_extract_epi16(cs128, 0);	// SSE4: _mm_extract_epi8 ?
 	}
+
+	if(n >= 8)
+	{
+		__m128i cs64 = _mm_loadl_epi64((const __m128i*)s);
+
+		_mm_storel_epi64((__m128i*)p, cs64);
+		cs64 = _mm_add_epi8(cs64, _mm_srli_si128(cs64, 4));
+		cs64 = _mm_add_epi8(cs64, _mm_srli_si128(cs64, 2));
+		cs64 = _mm_add_epi8(cs64, _mm_srli_si128(cs64, 1));
+		cs += _mm_extract_epi16(cs64, 0);	// SSE4: _mm_extract_epi8 ?
+		p += 8;
+		s += 8;
+		n -= 8;
+	}
 #endif	// #ifdef USE_SSE
 
 	while(n-- > 0)
-		cs += (*dest++ = *src++);
+		cs += (*p++ = *s++);
 
 	return cs;
 }
@@ -139,11 +153,10 @@ unsigned char copy_cs(char* restrict dest, const char* restrict src, unsigned n)
 static
 bool copy_chunk_cs(scanner_state* const state)
 {
-	const char* s = state->src;
-	const unsigned n = min(state->end - s, state->counter);
+	const unsigned n = min(state->end - state->src, state->counter);
 
-	state->check_sum += copy_cs(state->dest, s, n);
-	state->src = s + n;
+	state->check_sum += copy_cs(state->dest, state->src, n);
+	state->src += n;
 	state->dest += n;
 	state->counter -= n;
 	return state->counter == 0;
