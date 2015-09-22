@@ -85,12 +85,6 @@ unsigned min(unsigned a, unsigned b)
 	return a < b ? a : b;
 }
 
-static
-int next_char(scanner_state* const state)
-{
-	return (state->src != state->end) ? CHAR_TO_INT(*state->dest++ = *state->src++) : EOF;
-}
-
 // copy a chunk of 'state->counter' bytes
 static
 bool copy_chunk(scanner_state* const state)
@@ -155,6 +149,41 @@ bool copy_chunk_cs(scanner_state* const state)
 	return state->counter == 0;
 }
 
+// covert and validate message length
+static
+bool convert_message_length(scanner_state* const state)
+{
+	if(state->counter < 2)
+		return false;
+
+	const char* s = state->dest - state->counter;
+	unsigned len = CHAR_TO_INT(*s++) - '0';
+
+	if(len > 9)
+		return false;
+
+	const char* const end = state->dest - 1;
+
+	while(s < end)
+	{
+		const unsigned t = CHAR_TO_INT(*s++) - '0';
+
+		if(t > 9)
+			return false;
+
+		len = len * 10 + t;
+
+		if(len > MAX_MESSAGE_LENGTH)
+			return false;
+	}
+
+	if(len < sizeof("35=0|49=X|56=Y|34=1|") - 1)
+		return false;
+
+	state->counter = len;
+	return true;
+}
+
 static
 bool valid_checksum(const scanner_state* const state)
 {
@@ -169,7 +198,6 @@ bool valid_checksum(const scanner_state* const state)
 // scanner
 bool extract_next_message(fix_parser* const parser)
 {
-	int c;
 	scanner_state* const state = &parser->state;
 
 	switch(state->label)
@@ -193,60 +221,47 @@ bool extract_next_message(fix_parser* const parser)
 				goto BEGIN_STRING_FAILURE;
 
 			state->check_sum = parser->header_checksum;
+			state->counter = 0;
 
 			// update context
 			parser->result.error.context.begin = state->dest;
 
-		case 2:	// message length (state->counter), first digit
-			switch(c = next_char(state))
+		case 2:	// message length
+			// copy bytes
+			for(;;)
 			{
-				case '1' ... '9':
-					state->counter = c - '0';
-					state->check_sum += c;
-					break;
-				case EOF:
+				if(state->src == state->end)
 					return (state->label = 2, false);
-				default:
+
+				const unsigned char x = (*state->dest++ = *state->src++);
+
+				state->check_sum += x;
+				++state->counter;
+
+				if(x == SOH)
+					break;
+
+				if(state->counter == 10)	// max. 9 digits + SOH
 					goto MESSAGE_LENGTH_FAILURE;
 			}
 
-		case 3:	// message length (state->counter), remaining digits
-			do
-			{
-				switch(c = next_char(state))
-				{
-					case '0' ... '9':
-						state->counter = state->counter * 10 + c - '0';
-
-						if(state->counter > MAX_MESSAGE_LENGTH)
-							goto MESSAGE_LENGTH_FAILURE;
-					case SOH:
-						state->check_sum += c;
-						break;
-					case EOF:
-						return (state->label = 3, false);
-					default:
-						goto MESSAGE_LENGTH_FAILURE;
-				}
-			} while(c != SOH);
-
-			// validate the length
-			if(state->counter < sizeof("35=0|49=X|56=Y|34=1|") - 1)
+			// convert
+			if(!convert_message_length(state))
 				goto MESSAGE_LENGTH_FAILURE;
 
 			// store context
 			parser->result.error.context.end = state->dest;
 
-			// ensure enough space for message body
+			// ensure enough space for the message body
 			parser->frame.begin = state->dest = make_space(parser, state->dest, state->counter + sizeof("10=123|") - 1);
 
 			if(!state->dest)
 				return false;	// out of memory
 
-		case 4: // message body
+		case 3: // message body
 			// copy
 			if(state->src == state->end || !copy_chunk_cs(state))
-				return (state->label = 4, false);
+				return (state->label = 3, false);
 
 			// validate
 			if(*(state->dest - 1) != SOH)
@@ -261,10 +276,10 @@ bool extract_next_message(fix_parser* const parser)
 			// prepare for trailer
 			state->counter = sizeof("10=123|") - 1;
 
-		case 5: // trailer
+		case 4: // trailer
 			// copy
 			if(state->src == state->end || !copy_chunk(state))
-				return (state->label = 5, false);
+				return (state->label = 4, false);
 
 			// complete message body
 			parser->body_length = state->dest - parser->body;

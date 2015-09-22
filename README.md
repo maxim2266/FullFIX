@@ -25,11 +25,11 @@ _Compiler:_ gcc (Ubuntu 4.8.4-2ubuntu1~14.04) 4.8.4
 _OS:_ Linux Mint 17.2 64bit
 
 FIX message type                  | FIX specification                        | Validation | Average time to parse one message
-----------------------------------|------------------------------------------|------------|--------------------------------------------------
+----------------------------------|------------------------------------------|------------|----------------------------------
 NewOrderSingle('D')               | Hand-coded spec. for this message only   | No         | 0.329 µs/msg
-NewOrderSingle('D')               | Hand-coded spec. for this message only   | Yes        | 0.571 µs/msg
-NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Yes        | 0.750 µs/msg
-MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 1.234 µs/msg
-MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 1.388 µs/msg
+NewOrderSingle('D')               | Hand-coded spec. for this message only   | Yes        | 0.539 µs/msg
+NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Yes        | 0.740 µs/msg
+MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 1.274 µs/msg
+MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 1.382 µs/msg
 
 For more details see `doc/` directory of the project.
