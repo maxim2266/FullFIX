@@ -6,7 +6,6 @@ FullFIX is a library for parsing Financial Information eXchange (FIX) messages.
 
 * `include/`
   * `fix.h` - main header file, contains all the data definitions and function declarations;
-  * `spec.h` - some macro definitions to support the compiled specification, should not be used anywhere else.
 * `src/`
   * `scanner.c` - parser, first pass;
   * `parser.c` - parser, second pass;
@@ -16,6 +15,7 @@ FullFIX is a library for parsing Financial Information eXchange (FIX) messages.
 * `test/`: unit tests
 * `tools/`
   * `compile-spec` - FIX specification compiler;
+  * `spec.c.template` - template for specification compiler.
   * `perf-stat` - performance statistics collector.
 * `doc/`
   * `doc.md` - main documentation (this file);
@@ -50,7 +50,7 @@ The same functions can also act as format validators.
 The parser takes raw bytes as input and provides an API for extracting messages one-by-one.
 Each message gets extracted and parsed (steps 1 and 2 above) and returned to the user
 as an efficient `tag->value` mapping. All processing happens in the same thread of execution
-to avoid any synchronisation overhead, especially  when integrating the library into 
+to avoid any synchronisation overhead, especially  when integrating the library into
 an existing software.
 
 ### Data representation

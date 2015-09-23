@@ -30,7 +30,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from sys import exit, argv
 import xml.etree.ElementTree as ET
-from os.path import basename, splitext, exists, isdir, join as path_join
+from os.path import basename, splitext, exists, isdir, dirname, join as path_join
 from collections import namedtuple, OrderedDict, deque
 from functools import singledispatch
 from itertools import chain
@@ -63,6 +63,14 @@ def write_file(file_name, fmt, data):
 			print(fmt.format(**data), file = f)
 	except IOError as e:
 		die('Cannot write "{}": {}'.format(file_name, e))
+
+# spec template
+def read_spec_template():
+	try:
+		with open(path_join(dirname(argv[0]), 'spec.c.template')) as f:
+			return f.read()
+	except IOError as e:
+		die('Cannot read template file: ' + str(e))
 
 # data extractors -------------------------------------------------------------------------------------
 # tag types
@@ -474,45 +482,9 @@ def make_parser_table_body(messages):
 
 	return '\n'.join(s for s in iter_body())
 
-# .c file format
-__c_fmt = \
-'''// AUTOMATICALLY GENERATED FILE - DO NOT EDIT!
-#include <{base_name}.h>
-#include <spec.h>
-
-// empty group info function
-static
-const fix_group_info* empty_group_info_func(const unsigned tag __attribute__((__unused__)))
-{{
-	return NULL;
-}}
-
-// groups ----------------------------------------------------------------------------------------
-{groups}
-
-{common}
-
-// messages --------------------------------------------------------------------------------------
-{messages}
-
-// parser table ----------------------------------------------------------------------------------
-static
-const fix_message_info* {prefix}_parser_table(const fix_string msg_type)
-{{
-	const char* s = msg_type.begin;
-
-	{parser_table}
-}}
-
-// parser constructor ----------------------------------------------------------------------------
-fix_parser* create_{prefix}_parser()
-{{
-	return create_fix_parser({prefix}_parser_table, CONST_LIT("{fix_version}"));
-}}'''
-
 # code generator
 def write_code(name, file_name_base, prefix, fix_version, groups, messages, common):
-	write_file(name, __c_fmt, { \
+	write_file(name, read_spec_template(), { \
 		'base_name'		: file_name_base, \
 		'prefix'		: prefix, \
 		'fix_version'	: fix_version, \

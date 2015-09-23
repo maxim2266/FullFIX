@@ -26,7 +26,9 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#pragma once
+// AUTOMATICALLY GENERATED FILE - DO NOT EDIT!
+
+#include <{base_name}.h>
 
 // macro to support compiled specification
 #define NONE ((unsigned)-1)
@@ -47,59 +49,59 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // group --------------------------------------------------------------------------------------
 #define TAG_INFO_FUNC(name)	\
 static unsigned name ## _tag_info_func(const unsigned tag)	\
-{	\
+{{	\
 	switch(tag)	\
-	{
+	{{
 
 #define END_TAG_INFO	\
 		default: return NONE;	\
-	}	\
-}
+	}}	\
+}}
 
 #define GROUP_INFO_FUNC(name)	\
 static const fix_group_info* name ## _group_info_func(const unsigned tag)	\
-{	\
+{{	\
 	switch(tag)	\
-	{
+	{{
 
 #define GROUP_INFO(len_tag_name, group_name)	\
 	case len_tag_name: return &group_name ## _group_info;
 
 #define END_GROUP_INFO	\
 		default: return NULL;	\
-	}	\
-}
+	}}	\
+}}
 
 #define GROUP_INFO_STRUCT(name, node_size, first_tag)	\
 static const fix_group_info	\
-name ## _group_info = { (node_size), (first_tag), name ## _tag_info_func, name ## _group_info_func };
+name ## _group_info = {{ (node_size), (first_tag), name ## _tag_info_func, name ## _group_info_func }};
 
 #define EMPTY_GROUP_INFO(name, node_size, first_tag)	\
 static const fix_group_info	\
-name ## _group_info = { (node_size), (first_tag), name ## _tag_info_func, empty_group_info_func };
+name ## _group_info = {{ (node_size), (first_tag), name ## _tag_info_func, empty_group_info_func }};
 
 // message ---------------------------------------------------------------------------------------
 #define MESSAGE_TAG_INFO_FUNC		TAG_INFO_FUNC
 
 #define END_MESSAGE_TAG_INFO	\
 		default: return common_tag_info_func(tag);	\
-	}	\
-}
+	}}	\
+}}
 
 #define MESSAGE_GROUP_INFO_FUNC	GROUP_INFO_FUNC
 
 #define END_MESSAGE_GROUP_INFO	\
 		default: return common_group_info_func(tag);	\
-	}	\
-}
+	}}	\
+}}
 
 #define MESSAGE_GROUP_INFO_STRUCT(name, node_size)	\
 static const fix_message_info	\
-name ## _message_info = { { (node_size), 0, name ## _tag_info_func, name ## _group_info_func }, name };
+name ## _message_info = {{ {{ (node_size), 0, name ## _tag_info_func, name ## _group_info_func }}, name }};
 
 #define EMPTY_MESSAGE_GROUP_INFO(name, node_size)	\
 static const fix_message_info	\
-name ## _message_info = { { (node_size), 0, name ## _tag_info_func, common_group_info_func }, name };
+name ## _message_info = {{ {{ (node_size), 0, name ## _tag_info_func, common_group_info_func }}, name }};
 
 // parser table ----------------------------------------------------------------------------------
 #define RETURN_MESSAGE(name)	\
@@ -107,3 +109,33 @@ name ## _message_info = { { (node_size), 0, name ## _tag_info_func, common_group
 
 #define RETURN_MESSAGE_OR_NULL(name)	\
 	return *s == SOH ? &name ## _message_info : NULL
+
+// empty group info function --------------------------------------------------------------------
+static
+const fix_group_info* empty_group_info_func(const unsigned tag __attribute__((__unused__)))
+{{
+	return NULL;
+}}
+
+// groups ----------------------------------------------------------------------------------------
+{groups}
+
+{common}
+
+// messages --------------------------------------------------------------------------------------
+{messages}
+
+// parser table ----------------------------------------------------------------------------------
+static
+const fix_message_info* {prefix}_parser_table(const fix_string msg_type)
+{{
+	const char* s = msg_type.begin;
+
+	{parser_table}
+}}
+
+// parser constructor ----------------------------------------------------------------------------
+fix_parser* create_{prefix}_parser()
+{{
+	return create_fix_parser({prefix}_parser_table, CONST_LIT("{fix_version}"));
+}}

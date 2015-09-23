@@ -26,7 +26,7 @@ release32 : CFLAGS += -mx32
 SRC = src/parser.c src/scanner.c src/utils.c src/converters.c \
 test/main.c test/scanner_test.c test/parser_test.c test/test_utils.c test/utils_test.c test/$(SPEC).c
 
-HEADERS = include/fix.h include/spec.h include/$(SPEC).h src/fix_impl.h test/test_utils.h
+HEADERS = include/fix.h include/$(SPEC).h src/fix_impl.h test/test_utils.h
 
 $(BIN) : $(SRC) $(HEADERS)
 	$(CC) -o $@ $(CFLAGS) $(SRC)
@@ -34,5 +34,5 @@ $(BIN) : $(SRC) $(HEADERS)
 # clean-up
 .PHONY : clean
 clean :
-	rm -f include/$(SPEC).h src/$(SPEC).c $(BIN)
+	rm -f include/$(SPEC).h test/$(SPEC).c $(BIN)
 
