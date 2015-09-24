@@ -31,11 +31,13 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 void scanner_test();
 void parser_test();
 void utils_test();
+void random_messages_test();
 
-int main(int argv __attribute__((__unused__)), char** argc __attribute__((__unused__)))
+int main()
 {
 	scanner_test();
 	parser_test();
+	random_messages_test();
 	utils_test();
 
 	return 0;

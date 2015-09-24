@@ -24,7 +24,8 @@ debug : CFLAGS = -g -Wall -Wextra -Iinclude -DDEBUG
 release32 : CFLAGS += -mx32
 
 SRC = src/parser.c src/scanner.c src/utils.c src/converters.c \
-test/main.c test/scanner_test.c test/parser_test.c test/test_utils.c test/utils_test.c test/$(SPEC).c
+test/main.c test/scanner_test.c test/parser_test.c test/test_utils.c test/utils_test.c \
+test/random_test.c test/$(SPEC).c
 
 HEADERS = include/fix.h include/$(SPEC).h src/fix_impl.h test/test_utils.h
 
