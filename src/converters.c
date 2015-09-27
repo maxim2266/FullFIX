@@ -56,6 +56,47 @@ fix_error copy_fix_tag_as_string(const fix_group* const group, unsigned tag, cha
 	return FE_OK;
 }
 
+// ascii digits to long converters
+static
+const char* convert_significant_digits(const char* s, long* const result)
+{
+	long res = 0;
+	unsigned c = CHAR_TO_INT(*s) - '0';
+
+	if(c == 0)
+		return NULL;
+
+	if(c <= 9)
+	{
+		res = c;
+
+		for(c = CHAR_TO_INT(*++s) - '0'; c <= 9; c = CHAR_TO_INT(*++s) - '0')
+		{
+			const long t = res * 10 + c;
+
+			if(t < res)	// overflow
+				return NULL;
+
+			res = t;
+		}
+	}
+
+	// done
+	*result = res;
+	return s;
+}
+
+static
+const char* convert_digits(const char* s, long* const result)
+{
+	// skip leading zeroes
+	while(*s == '0')
+		++s;
+
+	// convert digits
+	return convert_significant_digits(s, result);
+}
+
 // tag as long integer
 fix_error get_fix_tag_as_long(const fix_group* const group, unsigned tag, long* const result)
 {
@@ -70,31 +111,33 @@ fix_error get_fix_tag_as_long(const fix_group* const group, unsigned tag, long* 
 	if(err != FE_OK)
 		return err;
 
-	// conversion
-	long val = 0;
-	const char* s = value.begin;
-	const int negative = (*s == '-') ? (++s, 1) : 0;
+	if(fix_string_length(value) > 20)	// ???
+		RETURN( FE_INVALID_VALUE );
 
-	// quickly skip leading zeroes
-	while(*s == '0')
-		++s;
+	// sign
+	bool neg = false;
 
-	// convert all significant digits
-	while(*s >= '0' && *s <= '9')
+	if(*value.begin == '-')
 	{
-		const long new_val = val * 10L + *s++ - '0';
-
-		if(new_val < val)	// overflow
-			RETURN( FE_INVALID_VALUE );
-
-		val = new_val;
+		++value.begin;
+		neg = true;
 	}
 
-	if(*s != SOH || s == value.begin + negative)	// no SOH terminator or the sign only
+	// conversion
+	long val;
+
+	value.begin = convert_digits(value.begin, &val);
+
+	// validation
+	if(!value.begin || (neg && val == 0))	// overflow or '-0'
+		RETURN( FE_INVALID_VALUE );
+
+	if(value.begin < value.end)				// unprocessed bytes
 		RETURN( FE_INCORRECT_VALUE_FORMAT );
 
+	// all clear
 	if(result)
-		*result = negative ? -val : val;
+		*result = neg ? -val : val;
 
 	return FE_OK;
 }
@@ -118,62 +161,70 @@ fix_error get_fix_tag_as_double(const fix_group* const group, unsigned tag, doub
 	if(err != FE_OK)
 		return err;
 
-	// conversion
-	long val = 0, frac = 0;
-	unsigned ndig = 0;	// number of significant digits
-	const char* s = value.begin;
-	const double sign = (*s == '-') ? (++s, -1.) : 1.;
-	const char* mark = s;
+	// sign
+	bool neg = false;
+
+	if(*value.begin == '-')
+	{
+		++value.begin;
+		neg = true;
+	}
 
 	// skip leading zeroes
-	while(*s == '0')
-		++s;
+	while(*value.begin == '0')
+		++value.begin;
 
 	// integer part
-	while(*s >= '0' && *s <= '9')
-	{
-		if(++ndig > 15)
-			RETURN( FE_INVALID_VALUE );
+	long int_part;
+	const char* s = convert_significant_digits(value.begin, &int_part);
 
-		val = val * 10L + *s++ - '0';
-	}
+	if(!s)
+		RETURN( FE_INVALID_VALUE );
 
-	if(s == mark)	// cannot have empty integer part
-		RETURN( FE_INCORRECT_VALUE_FORMAT );
+	unsigned nsig = s - value.begin;	// significant digits counter
 
-	// fractional part
+	if(nsig > 15)
+		RETURN( FE_INVALID_VALUE );
+
+	long frac_part = 0;
 	unsigned nfrac = 0;
 
-	if(*s == '.')
+	if(*s == '.' && *++s != SOH)
 	{
-		mark = ++s;
+		// fractional part
+		value.begin = s;
+		s = convert_digits(s, &frac_part);
 
-		if(ndig == 0)
-			while(*s == '0')	// skip leading zeroes
-				++s;
+		if(!s)
+			RETURN( FE_INCORRECT_VALUE_FORMAT );
 
-		while(*s >= '0' && *s <= '9')
-		{
-			if(++ndig > 15)
-				RETURN( FE_INVALID_VALUE );
+		nfrac = s - value.begin;
 
-			frac = frac * 10L + *s++ - '0';
-		}
-
-		nfrac = s - mark;
+		if(nsig + nfrac > 15)	// counting trailing zeros as significant, contrary to the definition
+			RETURN( FE_INCORRECT_VALUE_FORMAT );
 	}
 
-	if(*s != SOH)
+	// final checks
+	if(s < value.end)	// unprocessed bytes
 		RETURN( FE_INCORRECT_VALUE_FORMAT );
 
-	static const double mult[] = { 0., 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 1e-15 };
+	if(neg && int_part == 0 && frac_part == 0)	// -0.0
+		RETURN( FE_INVALID_VALUE );
 
+	// compose result
+	static const double factor[] = { 0., 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 1e-15 };
+
+	double res = (double)int_part;
+
+	if(frac_part != 0)
+		res += (double)frac_part * factor[nfrac];
+
+	if(neg)
+		res = -res;
+
+	// all done
 	if(result)
-#ifdef FP_FAST_FMA
-		*result = copysign(fma((double)frac, mult[nfrac], (double)val), sign);
-#else
-		*result = copysign(frac * mult[nfrac] + val, sign);
-#endif
+		*result = res;
 
 	return FE_OK;
 }
@@ -228,14 +279,14 @@ fix_error get_fix_tag_as_boolean(const fix_group* const group, unsigned tag, boo
 
 // matchers (unsafe macros!)
 #define READ_FIRST_DIGIT(s, r)	\
-	switch(CHAR_TO_INT(*(s))) {	\
+	switch(*(s)) {	\
 		case '0' ... '9': (r) = *(s) - '0'; break;	\
 		default: RETURN( FE_INCORRECT_VALUE_FORMAT );	\
 	}	\
 	++(s)
 
 #define READ_DIGIT(s, r)	\
-	switch(CHAR_TO_INT(*(s))) {	\
+	switch(*(s)) {	\
 		case '0' ... '9': (r) = (r) * 10 + *(s) - '0'; break;	\
 		default: RETURN( FE_INCORRECT_VALUE_FORMAT );	\
 	}	\
@@ -309,7 +360,7 @@ fix_error read_time_part(const fix_group* const group, fix_string* const ps, utc
 static
 fix_error read_time_ms_part(const fix_group* const group, fix_string* const ps, utc_timestamp* const ts)
 {
-	fix_error err = read_time_part(group, ps, ts);
+	const fix_error err = read_time_part(group, ps, ts);
 
 	if(err != FE_OK)
 		return err;
@@ -470,7 +521,7 @@ fix_error get_fix_tag_as_LocalMktDate(const fix_group* const group, unsigned tag
 	// FUNCTION EXPECTS A STRING IN THE "YYYY-MM-DD" FORMAT.
 
 	fix_string value;
-	fix_error err = get_fix_tag_as_string(group, tag, &value);
+	const fix_error err = get_fix_tag_as_string(group, tag, &value);
 
 	if(err != FE_OK)
 		return err;

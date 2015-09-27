@@ -102,24 +102,21 @@ static
 unsigned char copy_cs(char* restrict p, const char* restrict s, unsigned n)
 {
 	unsigned char cs = 0;
+	const char* const end = s + n;
 
 #ifdef USE_SSE
-	if(n >= 16)
+	if(end - s >= 16)
 	{
 		__m128i cs128 = _mm_loadu_si128((const __m128i*)s);
 
-		s += 16;
 		_mm_storeu_si128((__m128i*)p, cs128);
-		p += 16;
 
-		while((n -= 16) >= 16)
+		for(s += 16, p += 16; end - s >= 16; s += 16, p += 16)
 		{
 			const __m128i tmp = _mm_loadu_si128((const __m128i*)s);
 
-			s += 16;
-			_mm_storeu_si128((__m128i*)p, tmp);
-			p += 16;
 			cs128 = _mm_add_epi8(cs128, tmp);
+			_mm_storeu_si128((__m128i*)p, tmp);
 		}
 
 		cs128 = _mm_add_epi8(cs128, _mm_srli_si128(cs128, 8));
@@ -129,22 +126,21 @@ unsigned char copy_cs(char* restrict p, const char* restrict s, unsigned n)
 		cs += _mm_extract_epi16(cs128, 0);	// SSE4: _mm_extract_epi8 ?
 	}
 
-	if(n >= 8)
+	if(end - s >= 8)
 	{
 		__m128i cs64 = _mm_loadl_epi64((const __m128i*)s);
 
 		_mm_storel_epi64((__m128i*)p, cs64);
+		s += 8;
+		p += 8;
 		cs64 = _mm_add_epi8(cs64, _mm_srli_si128(cs64, 4));
 		cs64 = _mm_add_epi8(cs64, _mm_srli_si128(cs64, 2));
 		cs64 = _mm_add_epi8(cs64, _mm_srli_si128(cs64, 1));
 		cs += _mm_extract_epi16(cs64, 0);	// SSE4: _mm_extract_epi8 ?
-		p += 8;
-		s += 8;
-		n -= 8;
 	}
 #endif	// #ifdef USE_SSE
 
-	while(n-- > 0)
+	while(s < end)
 		cs += (*p++ = *s++);
 
 	return cs;

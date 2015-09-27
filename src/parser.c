@@ -116,9 +116,9 @@ unsigned read_uint(fix_parser* const parser, const char delim)
 
 	// assuming (s < parser->frame.end) and *(parser->frame.end - 1) == SOH
 
-	unsigned tag = CHAR_TO_INT(*s++) - '0';
+	unsigned res = CHAR_TO_INT(*s++) - '0';
 
-	if(tag == 0 || tag > 9)	// leading zeroes are not allowed
+	if(res == 0 || res > 9)	// leading zeroes are not allowed
 		goto ERROR_EXIT;
 
 	for(unsigned c = CHAR_TO_INT(*s++); c != CHAR_TO_INT(delim); c = CHAR_TO_INT(*s++))
@@ -128,16 +128,16 @@ unsigned read_uint(fix_parser* const parser, const char delim)
 		if(c > 9)	// not a digit
 			goto ERROR_EXIT;
 
-		c = tag * 10 + c;
+		c = res * 10 + c;
 
-		if(c < tag)	// overflow
+		if(c < res)	// overflow
 			goto ERROR_EXIT;
 
-		tag = c;
+		res = c;
 	}
 
 	parser->result.error.context.end = parser->frame.begin = s;
-	return tag;
+	return res;
 
 ERROR_EXIT:
 	parser->result.error.context.end = s;
@@ -157,16 +157,13 @@ unsigned next_tag(fix_parser* const parser)
 	}
 
 	// read tag
-	unsigned tag = read_uint(parser, '=');
+	const unsigned tag = parser->result.error.tag = read_uint(parser, '=');
 
 	if(tag == 0)	// invalid tag
 	{
 		parser->result.error.code = FE_INVALID_TAG;
-		parser->result.error.tag = 0;
 		return 0;
 	}
-
-	parser->result.error.tag = tag;
 
 	if(parser->frame.begin == parser->frame.end)	// empty tag value
 	{
@@ -206,14 +203,8 @@ unsigned read_uint_value(fix_parser* const parser)
 {
 	const unsigned val = read_uint(parser, SOH);
 
-	if(val != 0)
-	{
-		parser->result.error.code = FE_OK;
-		return val;
-	}
-
-	parser->result.error.code = FE_INCORRECT_VALUE_FORMAT;
-	return 0;
+	parser->result.error.code = (val != 0) ? FE_OK : FE_INCORRECT_VALUE_FORMAT;
+	return val;
 }
 
 // read bytes to the first SOH, i.e., a FIX string
@@ -623,7 +614,7 @@ const fix_error_details* get_fix_group_error_details(const fix_group* const grou
 }
 
 // tag accessors ------------------------------------------------------------------------------------------
-static
+static inline
 fix_error set_group_error(const fix_group* const group, unsigned tag, fix_error err)
 {
 	set_error_ctx(group->error, err, tag, EMPTY_STR);
