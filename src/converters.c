@@ -56,7 +56,7 @@ fix_error copy_fix_tag_as_string(const fix_group* const group, unsigned tag, cha
 	return FE_OK;
 }
 
-// ascii digits to long converters
+// ascii digits to long integer converter
 static
 const char* convert_significant_digits(const char* s, long* const result)
 {
@@ -125,14 +125,13 @@ fix_error get_fix_tag_as_long(const fix_group* const group, unsigned tag, long* 
 
 	// conversion
 	long val;
-
-	value.begin = convert_digits(value.begin, &val);
+	const char* const s = convert_digits(value.begin, &val);
 
 	// validation
-	if(!value.begin || (neg && val == 0))	// overflow or '-0'
+	if(!s || s == value.begin || (neg && val == 0))	// overflow, no digits or '-0'
 		RETURN( FE_INVALID_VALUE );
 
-	if(value.begin < value.end)				// unprocessed bytes
+	if(s < value.end)				// unprocessed bytes
 		RETURN( FE_INCORRECT_VALUE_FORMAT );
 
 	// all clear
@@ -171,12 +170,19 @@ fix_error get_fix_tag_as_double(const fix_group* const group, unsigned tag, doub
 	}
 
 	// skip leading zeroes
-	while(*value.begin == '0')
-		++value.begin;
+	const char* s = value.begin;
+
+	while(*s == '0')
+		++s;
+
+	const unsigned nzero = s - value.begin;
+
+	value.begin = s;
 
 	// integer part
 	long int_part;
-	const char* s = convert_significant_digits(value.begin, &int_part);
+
+	s = convert_significant_digits(s, &int_part);
 
 	if(!s)
 		RETURN( FE_INVALID_VALUE );
@@ -189,7 +195,7 @@ fix_error get_fix_tag_as_double(const fix_group* const group, unsigned tag, doub
 	long frac_part = 0;
 	unsigned nfrac = 0;
 
-	if(*s == '.' && *++s != SOH)
+	if(*s == '.' && ++s < value.end)
 	{
 		// fractional part
 		value.begin = s;
@@ -205,7 +211,7 @@ fix_error get_fix_tag_as_double(const fix_group* const group, unsigned tag, doub
 	}
 
 	// final checks
-	if(s < value.end)	// unprocessed bytes
+	if(s < value.end || (nzero + nsig + nfrac == 0))	// unprocessed bytes or no digits
 		RETURN( FE_INCORRECT_VALUE_FORMAT );
 
 	if(neg && int_part == 0 && frac_part == 0)	// -0.0
