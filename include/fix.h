@@ -42,7 +42,7 @@ extern "C"
 #define MAX_GROUP_SIZE		1000
 
 // gcc-specific attributes ------------------------------------------------------------------------
-#ifdef __GNUC__
+#if defined __GNUC__ || defined __clang__
 #define PURE_FUNC	__attribute__((__pure__))
 #define NOINLINE	__attribute__((__noinline__))
 #else
