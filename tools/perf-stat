@@ -30,6 +30,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from sys import exit, argv
 import subprocess
+from collections import OrderedDict
 
 # error exit
 def die(msg):
@@ -67,7 +68,7 @@ def test_results():
 			die('Test failed')
 
 # test result collector
-times = dict(r for r in test_results())
+times = OrderedDict(r for r in test_results())
 
 for i in range(num_runs - 1):
 	for name, val in test_results():
