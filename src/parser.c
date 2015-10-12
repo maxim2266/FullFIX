@@ -26,10 +26,12 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define _GNU_SOURCE
-
 #include "fix_impl.h"
 #include <errno.h>
+
+#ifdef USE_SSE
+#include <xmmintrin.h>
+#endif
 
 // groups cleanup
 static
@@ -207,12 +209,63 @@ unsigned read_uint_value(fix_parser* const parser)
 	return val;
 }
 
+static
+const char* find_soh(const char* s)
+{
+	// here we are guaranteed to have at least 8 bytes ("|10=123|")
+	// left at the location pointed to by the input pointer, so we can safely
+	// read ahead without touching the memory outside the buffer.
+
+#ifdef USE_SSE
+
+	// pattern to compare to.
+	// lower half is all SOH's, upper half is all FF's, just to compare negatively
+	// to the upper nulls in the input
+	const __m128i patt = _mm_set_epi32(-1, -1, 0x01010101, 0x01010101);
+
+	// mask
+	int mask = _mm_movemask_epi8(_mm_cmpeq_epi8(patt, _mm_loadl_epi64((const __m128i*)s)));
+
+	while(mask == 0)
+	{
+		s += 8;
+		mask = _mm_movemask_epi8(_mm_cmpeq_epi8(patt, _mm_loadl_epi64((const __m128i*)s)));
+	}
+
+	return s + __builtin_ctz(mask);
+
+#else
+
+	for(;;)
+	{
+		unsigned long t = *(const unsigned long*)s;
+
+		if((t & 0xFFul) == 1ul) return s;
+		t >>= 8;
+		if((t & 0xFFul) == 1ul) return s + 1;
+		t >>= 8;
+		if((t & 0xFFul) == 1ul) return s + 2;
+		t >>= 8;
+		if((t & 0xFFul) == 1ul) return s + 3;
+		t >>= 8;
+		if((t & 0xFFul) == 1ul) return s + 4;
+		t >>= 8;
+		if((t & 0xFFul) == 1ul) return s + 5;
+		t >>= 8;
+		if((t & 0xFFul) == 1ul) return s + 6;
+		t >>= 8;
+		if((t & 0xFFul) == 1ul) return s + 7;
+		s += 8;
+	}
+
+#endif
+}
+
 // read bytes to the first SOH, i.e., a FIX string
-// never fails
-static inline
+static
 fix_string read_string(fix_parser* const parser)
 {
-	const fix_string res = { parser->frame.begin, rawmemchr(parser->frame.begin, SOH) };
+	const fix_string res = { parser->frame.begin, find_soh(parser->frame.begin) };
 
 	parser->frame.begin = res.end + 1;
 	return res;

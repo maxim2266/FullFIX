@@ -109,11 +109,11 @@ struct fix_group
 
 // scanner
 bool init_scanner(fix_parser* parser);
-bool extract_next_message(fix_parser* const parser);
+bool extract_next_message(fix_parser* const parser) __attribute__((nonnull));
 
 // utils -----------------------------------------------------------------------------
 // error setters
-void set_fatal_error(fix_parser* const parser, fix_error code);
+void set_fatal_error(fix_parser* const parser, fix_error code) __attribute__((nonnull));
 
 static inline
 void set_error(fix_error_details* const details, fix_error err, unsigned tag)
@@ -125,6 +125,6 @@ void set_error(fix_error_details* const details, fix_error err, unsigned tag)
 static inline
 void set_error_ctx(fix_error_details* const details, fix_error err, unsigned tag, const fix_string ctx)
 {
-	set_error(details, err, tag);
 	details->context = ctx;
+	set_error(details, err, tag);
 }

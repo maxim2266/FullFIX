@@ -79,7 +79,7 @@ bool init_scanner(fix_parser* parser)
 }
 
 // scanner helper functions
-static
+static inline
 unsigned min(unsigned a, unsigned b)
 {
 	return a < b ? a : b;
