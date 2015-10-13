@@ -255,7 +255,7 @@ const char* find_soh(const char* s)
 		if((t & 0xFFul) == 1ul) return s + 6;
 		t >>= 8;
 		if((t & 0xFFul) == 1ul) return s + 7;
-		s += 8;
+		s += sizeof(unsigned long);
 	}
 
 #endif

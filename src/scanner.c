@@ -201,7 +201,7 @@ bool valid_checksum(const scanner_state* const state)
 		cs1 = CHAR_TO_INT(state->dest[-3]) - '0',
 		cs0 = CHAR_TO_INT(state->dest[-2]) - '0';
 
-	return cs2 <= 9 && cs1 <= 9 && cs0 <= 9 && CHAR_TO_INT(state->check_sum) == cs2 * 100 + cs1 * 10 + cs0;
+	return cs2 <= 9 && cs1 <= 9 && cs0 <= 9 && (unsigned)state->check_sum == cs2 * 100 + cs1 * 10 + cs0;
 }
 
 // scanner
@@ -294,7 +294,7 @@ bool extract_next_message(fix_parser* const parser)
 			parser->body_length = state->dest - parser->body;
 
 			// validate
-			if(state->dest[-7] != '1' || state->dest[-6] != '0' || state->dest[-5] != '=' || state->dest[-1] != SOH)
+			if(*(const unsigned*)(state->dest - 8) != (SOH | ('1' << 8) | ('0' << 16) | ('=' << 24)) || state->dest[-1] != SOH)
 				goto TRAILER_FAILURE;
 
 			// compare checksum
