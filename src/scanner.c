@@ -115,8 +115,8 @@ unsigned char copy_cs(char* restrict p, const char* restrict s, unsigned n)
 		{
 			const __m128i tmp = _mm_loadu_si128((const __m128i*)s);
 
-			cs128 = _mm_add_epi8(cs128, tmp);
 			_mm_storeu_si128((__m128i*)p, tmp);
+			cs128 = _mm_add_epi8(cs128, tmp);
 		}
 
 		cs128 = _mm_add_epi8(cs128, _mm_srli_si128(cs128, 8));
