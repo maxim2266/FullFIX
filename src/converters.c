@@ -87,14 +87,18 @@ const char* convert_significant_digits(const char* s, long* const result)
 }
 
 static
-const char* convert_digits(const char* s, long* const result)
+const char* skip_zeroes(const char* s)
 {
-	// skip leading zeroes
 	while(*s == '0')
 		++s;
 
-	// convert digits
-	return convert_significant_digits(s, result);
+	return s;
+}
+
+static
+const char* convert_digits(const char* s, long* const result)
+{
+	return convert_significant_digits(skip_zeroes(s), result);
 }
 
 // tag as long integer
@@ -170,11 +174,7 @@ fix_error get_fix_tag_as_double(const fix_group* const group, unsigned tag, doub
 	}
 
 	// skip leading zeroes
-	const char* s = value.begin;
-
-	while(*s == '0')
-		++s;
-
+	const char* s = skip_zeroes(value.begin);
 	const unsigned nzero = s - value.begin;
 
 	value.begin = s;
