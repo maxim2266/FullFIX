@@ -161,21 +161,14 @@ unsigned next_tag(fix_parser* const parser)
 	// read tag
 	const unsigned tag = parser->result.error.tag = read_uint(parser, '=');
 
-	if(tag == 0)	// invalid tag
+	if(tag != 0)
 	{
-		parser->result.error.code = FE_INVALID_TAG;
-		return 0;
+		parser->result.error.code = FE_OK;
+		return tag;
 	}
 
-	if(parser->frame.begin == parser->frame.end)	// empty tag value
-	{
-		parser->result.error.code = FE_EMPTY_VALUE;
-		return 0;
-	}
-
-	// all done
-	parser->result.error.code = FE_OK;
-	return tag;
+	parser->result.error.code = FE_INVALID_TAG;
+	return 0;
 }
 
 // match the next tag
@@ -205,8 +198,14 @@ unsigned read_uint_value(fix_parser* const parser)
 {
 	const unsigned val = read_uint(parser, SOH);
 
-	parser->result.error.code = (val != 0) ? FE_OK : FE_INCORRECT_VALUE_FORMAT;
-	return val;
+	if(val != 0)
+	{
+		parser->result.error.code = FE_OK;
+		return val;
+	}
+
+	parser->result.error.code = FE_INCORRECT_VALUE_FORMAT;
+	return 0;
 }
 
 static
@@ -334,16 +333,11 @@ void read_binary_and_get_next(fix_parser* const parser, const unsigned bin_tag, 
 
 	// read length value
 	const unsigned len = read_uint_value(parser);
-	fix_error_details* const details = &parser->result.error;
 
-	if(details->code != FE_OK)
+	if(len == 0)
 		return;	// something has gone wrong
 
-	if(len == 0)	// nothing to do, just proceed to the next tag
-	{
-		next_tag(parser);
-		return;
-	}
+	fix_error_details* const details = &parser->result.error;
 
 	// save length tag and context for error reporting
 	const unsigned len_tag = details->tag;
@@ -416,14 +410,8 @@ void read_group_and_get_next(fix_parser* const parser, const fix_group_info* con
 	// read number of nodes
 	const unsigned len = read_uint_value(parser);
 
-	if(parser->result.error.code != FE_OK)
+	if(len == 0)
 		return;	// something has gone wrong
-
-	if(len == 0)	// nothing to do, just proceed to the next tag
-	{
-		next_tag(parser);
-		return;
-	}
 
 	if(len > MAX_GROUP_SIZE)
 	{
