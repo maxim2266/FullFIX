@@ -4,7 +4,7 @@
 
 ###### Licence: BSD 3-clause
 
-###### Status: Alpha release
+###### Status: Beta release
 
 FullFIX is a library for parsing Financial Information eXchange (FIX) messages.
 The main goal of the project is to produce the fastest software solution for FIX protocol.
