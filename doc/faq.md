@@ -29,3 +29,14 @@ the two layers will require one more pass over the input data and one more layer
 specification, which will certainly hurt the performance. That does not mean
 the support cannot be added to this library, it all depends on if there is a substantial
 amount of interest in such a support.
+
+**Q.**: _What is the difference between this parser and [FFP](https://github.com/maxim2266/FFP)?_
+
+**A.**: Advantages of FullFIX over the FFP parser are:
+- Speed (up to x2, depending on the FIX specification size);
+- Error handling more conformant to the standard;
+- XML specification compiler.
+ 
+The same time, FFP has the following advantages:
+- Works for both Linux and Windows;
+- Simpler specification definition via the provided C macros.
