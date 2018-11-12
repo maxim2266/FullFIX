@@ -473,12 +473,14 @@ fix_error get_fix_tag_as_tz_timestamp(const fix_group* const group, unsigned tag
 	switch(*value.begin++)
 	{
 		case 'Z':
-			MATCH(value.begin, SOH); // and fall through
+			MATCH(value.begin, SOH);
+			// fall through
 		case SOH:
 			ts.offset_minutes = 0;
 			break;
 		case '-':
-			sign = -1; // and fall through
+			sign = -1;
+			// fall through
 		case '+':
 		{
 			int hour, minute;
@@ -580,9 +582,11 @@ fix_error get_fix_tag_as_fix_version(const fix_group* const group, unsigned tag,
 	switch(fix_string_length(value))
 	{
 		case sizeof("FIX27") - 1:
+			// fall through
 		case sizeof("FIX50SP1") - 1:
 			if(CODE(value.begin[0], value.begin[1], value.begin[2]) == CODE('F', 'I', 'X'))
 				break;
+			// fall through
 		default:
 			RETURN( FE_INCORRECT_VALUE_FORMAT );
 	}

@@ -219,6 +219,7 @@ bool extract_next_message(fix_parser* const parser)
 			// make new state
 			state->dest = parser->body;
 			state->counter = parser->header_len;
+			// fall through
 
 		case 1:	// message header
 			// copy header
@@ -234,6 +235,7 @@ bool extract_next_message(fix_parser* const parser)
 
 			// update context
 			parser->result.error.context.begin = state->dest;
+			// fall through
 
 		case 2:	// message length
 			// copy bytes
@@ -266,6 +268,7 @@ bool extract_next_message(fix_parser* const parser)
 
 			if(!state->dest)
 				return false;	// out of memory
+			// fall through
 
 		case 3: // message body
 			// copy
@@ -284,6 +287,7 @@ bool extract_next_message(fix_parser* const parser)
 
 			// prepare for trailer
 			state->counter = sizeof("10=123|") - 1;
+			// fall through
 
 		case 4: // trailer
 			// copy
