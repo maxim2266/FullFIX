@@ -17,19 +17,19 @@ _Supported FIX protocol versions_: up to and including version 4.4.
 
 ### Performance
 
-The numbers below have been achieved on my 5 years old laptop with Core i5-430M 2.25GHz processor.
+The numbers below have been achieved on Intel Core i5-8500T 2.10GHz processor.
 On modern production hardware the results will probably be better.
 
-_Compiler:_ gcc (Ubuntu 4.8.4-2ubuntu1~14.04) 4.8.4
+_Compiler:_ gcc (Ubuntu 7.3.0-27ubuntu1~18.04) 7.3.0
 
-_OS:_ Linux Mint 17.2 64bit
+_OS:_ Linux Mint 19 64bit
 
 FIX message type                  | FIX specification                        | Validation | Average time to parse one message
 ----------------------------------|------------------------------------------|------------|----------------------------------
-NewOrderSingle('D')               | Hand-coded spec. for this message only   | No         | 0.326 µs/msg
-NewOrderSingle('D')               | Hand-coded spec. for this message only   | Yes        | 0.563 µs/msg
-NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Yes        | 0.735 µs/msg
-MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 1.061 µs/msg
-MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 1.265 µs/msg
+NewOrderSingle('D')               | Hand-coded spec. for this message only   | No         | 0.152 µs/msg
+NewOrderSingle('D')               | Hand-coded spec. for this message only   | Yes        | 0.262 µs/msg
+NewOrderSingle('D')               | Compiled full spec. for FIX.4.4          | Yes        | 0.324 µs/msg
+MarketDataIncrementalRefresh('X') | Hand-coded spec. for this message only   | Yes        | 0.487 µs/msg
+MarketDataIncrementalRefresh('X') | Compiled full spec. for FIX.4.4          | Yes        | 0.611 µs/msg
 
 For more details see `doc/` directory of the project.
