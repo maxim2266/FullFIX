@@ -15,7 +15,7 @@ $(SPEC).done : test/$(SPEC).xml tools/compile-spec
 # compilation
 CC = gcc -std=c11
 
-release release32 : CFLAGS = -g -O3 -Wall -Wextra -Iinclude -march=native -mtune=native \
+release release32 : CFLAGS = -O3 -s -Wall -Wextra -Iinclude -march=native -mtune=native \
 -fomit-frame-pointer -Wl,--as-needed -flto -ffunction-sections -fdata-sections -Wl,--gc-sections \
 -DNDEBUG -DRELEASE -DUSE_SSE
 
