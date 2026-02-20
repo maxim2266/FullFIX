@@ -2,7 +2,7 @@ SPEC := FIX44
 BIN := fullfix-test
 
 # targets
-.PHONY: all release debug release32
+.PHONY: all clean release debug release32
 release debug release32 : $(BIN)
 
 all : clean release
@@ -16,7 +16,6 @@ $(SPEC).done : test/$(SPEC).xml tools/compile-spec
 	tools/compile-spec -s test test/$(SPEC).xml
 
 # compilation
-CC := gcc
 CFLAGS := -std=c11 -Wall -Wextra -Iinclude
 
 release release32 : CFLAGS += -O3 -s -march=native -mtune=native \
@@ -38,7 +37,6 @@ $(BIN) : $(SRC) $(HEADERS)
 	chmod 0711 $@
 
 # clean-up
-.PHONY : clean
 clean :
 	rm -f include/$(SPEC).h test/$(SPEC).c $(BIN)
 

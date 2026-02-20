@@ -61,7 +61,7 @@ static
 const char* convert_significant_digits(const char* s, long* const result)
 {
 	long res = 0;
-	unsigned c = CHAR_TO_INT(*s) - '0';
+	unsigned c = CHAR_TO_UINT(*s) - '0';
 
 	if(c == 0)
 		return NULL;
@@ -70,7 +70,7 @@ const char* convert_significant_digits(const char* s, long* const result)
 	{
 		res = c;
 
-		for(c = CHAR_TO_INT(*++s) - '0'; c <= 9; c = CHAR_TO_INT(*++s) - '0')
+		for(c = CHAR_TO_UINT(*++s) - '0'; c <= 9; c = CHAR_TO_UINT(*++s) - '0')
 		{
 			const long t = res * 10 + c;
 
@@ -302,7 +302,7 @@ fix_error get_fix_tag_as_boolean(const fix_group* const group, unsigned tag, boo
 #define READ_3_DIGITS(s, r)	READ_FIRST_DIGIT((s), (r)); READ_DIGIT((s), (r)); READ_DIGIT((s), (r))
 #define READ_4_DIGITS(s, r)	READ_FIRST_DIGIT((s), (r)); READ_DIGIT((s), (r)); READ_DIGIT((s), (r)); READ_DIGIT((s), (r))
 
-#define MATCH(s, c)	if(CHAR_TO_INT(*(s)++) != (c)) { RETURN( FE_INCORRECT_VALUE_FORMAT ); } else ((void)0)
+#define MATCH(s, c)	if(CHAR_TO_UINT(*(s)++) != (c)) { RETURN( FE_INCORRECT_VALUE_FORMAT ); } else ((void)0)
 
 // helper to read the 'YYYYMMDD' part of the time-stamp
 static
@@ -568,7 +568,7 @@ fix_error get_fix_tag_as_LocalMktDate(const fix_group* const group, unsigned tag
 }
 
 // tag as FIX version
-#define CODE(a, b, c)	(CHAR_TO_INT(a) + (CHAR_TO_INT(b) << 8) + (CHAR_TO_INT(c) << 16))
+#define CODE(a, b, c)	(CHAR_TO_UINT(a) + (CHAR_TO_UINT(b) << 8) + (CHAR_TO_UINT(c) << 16))
 
 fix_error get_fix_tag_as_fix_version(const fix_group* const group, unsigned tag, fix_version* const result)
 {

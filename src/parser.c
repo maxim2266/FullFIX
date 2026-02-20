@@ -118,12 +118,12 @@ unsigned read_uint(fix_parser* const parser, const char delim)
 
 	// assuming (s < parser->frame.end) and *(parser->frame.end - 1) == SOH
 
-	unsigned res = CHAR_TO_INT(*s++) - '0';
+	unsigned res = CHAR_TO_UINT(*s++) - '0';
 
 	if(res == 0 || res > 9)	// leading zeroes are not allowed
 		goto ERROR_EXIT;
 
-	for(unsigned c = CHAR_TO_INT(*s++); c != CHAR_TO_INT(delim); c = CHAR_TO_INT(*s++))
+	for(unsigned c = CHAR_TO_UINT(*s++); c != CHAR_TO_UINT(delim); c = CHAR_TO_UINT(*s++))
 	{
 		c -= '0';
 

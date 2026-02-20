@@ -166,7 +166,7 @@ bool convert_message_length(scanner_state* const state)
 		return false;
 
 	const char* s = state->dest - state->counter;
-	unsigned len = CHAR_TO_INT(*s++) - '0';
+	unsigned len = CHAR_TO_UINT(*s++) - '0';
 
 	if(len > 9)
 		return false;
@@ -175,7 +175,7 @@ bool convert_message_length(scanner_state* const state)
 
 	while(s < end)
 	{
-		const unsigned t = CHAR_TO_INT(*s++) - '0';
+		const unsigned t = CHAR_TO_UINT(*s++) - '0';
 
 		if(t > 9)
 			return false;
@@ -197,9 +197,9 @@ static
 bool valid_checksum(const scanner_state* const state)
 {
 	const unsigned
-		cs2 = CHAR_TO_INT(state->dest[-4]) - '0',
-		cs1 = CHAR_TO_INT(state->dest[-3]) - '0',
-		cs0 = CHAR_TO_INT(state->dest[-2]) - '0';
+		cs2 = CHAR_TO_UINT(state->dest[-4]) - '0',
+		cs1 = CHAR_TO_UINT(state->dest[-3]) - '0',
+		cs0 = CHAR_TO_UINT(state->dest[-2]) - '0';
 
 	return cs2 <= 9 && cs1 <= 9 && cs0 <= 9 && (unsigned)state->check_sum == cs2 * 100 + cs1 * 10 + cs0;
 }

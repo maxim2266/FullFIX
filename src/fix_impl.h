@@ -33,7 +33,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <malloc.h>
 
 // helper macros
-#define CHAR_TO_INT(c) ((int)(unsigned char)(c))
+#define CHAR_TO_UINT(c) ((unsigned)(unsigned char)(c))
 #define NONE ((unsigned)-1)
 
 // literals
